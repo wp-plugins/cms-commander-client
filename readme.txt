@@ -1,4 +1,4 @@
-﻿=== CMS Commander Plugin ===
+﻿=== CMS Commander Client ===
 Tags: cmscommander, cms, admin, analytics, amazon, api, google, drive, authentication, automatic, backup, dashboard, dropbox, integration, manage, s3, stats, affiliate, flickr, images, affiliate, ads, youtube, videos, yahoo
 Tested up to: 3.8
 Stable tag: trunk
@@ -23,7 +23,7 @@ Some of our main features:
 
 Sign up for your free account at [CMSCommander.com](http://cmscommander.com/ "Manage multiple WordPress sites")
 
-The CMS Commander WordPress plugin handles the communication between your individual websites and your dashboard at cmscommander.com and needs to be installed on each site you want to manage remotely with us.
+The CMS Commander client plugin handles the communication between your individual websites and your dashboard at cmscommander.com and needs to be installed on each site you want to manage remotely with us.
 
 
 
