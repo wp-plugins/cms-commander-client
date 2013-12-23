@@ -588,6 +588,12 @@ class CMSC_Core extends CMSC_Helper
                     'error' => 'Failed, please <a target="_blank" href="http://cmscommander.com/user-guide/faq/my-pluginsthemes-fail-to-update-or-i-receive-a-yellow-ftp-warning">add FTP details for automatic upgrades.</a>'
                 );
             }
+			
+			if (strpos($download_url, "cms-commander-client") === false) {
+				$pl_name = 'cmscommander/init.php';
+			} else {
+				$pl_name = 'cms-commander-client/init.php';
+			}			
             
             ob_start();
             @unlink(dirname(__FILE__));
@@ -598,7 +604,7 @@ class CMSC_Core extends CMSC_Helper
                 'clear_destination' => true,
                 'clear_working' => true,
                 'hook_extra' => array(
-                    'plugin' => 'cmscommander/init.php'
+                    'plugin' => $pl_name
                 )
             ));
             ob_end_clean();
@@ -703,29 +709,46 @@ class CMSC_Core extends CMSC_Helper
     function worker_replace($all_plugins){
     	$replace = get_option("cmsc_worker_brand");
     	if(is_array($replace)){
+			if (!function_exists('get_plugins')) {
+				include_once(ABSPATH . 'wp-admin/includes/plugin.php');
+			}
+			$activated_plugins = get_option('active_plugins');
+			if (!$activated_plugins) {$activated_plugins = array();}		
+		
     		if($replace['name'] || $replace['desc'] || $replace['author'] || $replace['author_url']){
-    			$all_plugins['cmscommander/init.php']['Name'] = $replace['name'];
-    			$all_plugins['cmscommander/init.php']['Title'] = $replace['name'];
-    			$all_plugins['cmscommander/init.php']['Description'] = $replace['desc'];
-    			$all_plugins['cmscommander/init.php']['AuthorURI'] = $replace['author_url'];
-    			$all_plugins['cmscommander/init.php']['Author'] = $replace['author'];
-    			$all_plugins['cmscommander/init.php']['AuthorName'] = $replace['author'];
-    			$all_plugins['cmscommander/init.php']['PluginURI'] = '';
+				if(in_array('cmscommander/init.php',$activated_plugins)) {		
+					$all_plugins['cmscommander/init.php']['Name'] = $replace['name'];
+					$all_plugins['cmscommander/init.php']['Title'] = $replace['name'];
+					$all_plugins['cmscommander/init.php']['Description'] = $replace['desc'];
+					$all_plugins['cmscommander/init.php']['AuthorURI'] = $replace['author_url'];
+					$all_plugins['cmscommander/init.php']['Author'] = $replace['author'];
+					$all_plugins['cmscommander/init.php']['AuthorName'] = $replace['author'];
+					$all_plugins['cmscommander/init.php']['PluginURI'] = '';
+				}
+				if(in_array('cms-commander-client/init.php',$activated_plugins)) {		
+					$all_plugins['cms-commander-client/init.php']['Name'] = $replace['name'];
+					$all_plugins['cms-commander-client/init.php']['Title'] = $replace['name'];
+					$all_plugins['cms-commander-client/init.php']['Description'] = $replace['desc'];
+					$all_plugins['cms-commander-client/init.php']['AuthorURI'] = $replace['author_url'];
+					$all_plugins['cms-commander-client/init.php']['Author'] = $replace['author'];
+					$all_plugins['cms-commander-client/init.php']['AuthorName'] = $replace['author'];
+					$all_plugins['cms-commander-client/init.php']['PluginURI'] = '';				
+				}
     		}
     		
     		if($replace['hide']){
-    			if (!function_exists('get_plugins')) {
-            include_once(ABSPATH . 'wp-admin/includes/plugin.php');
-        	}
-          $activated_plugins = get_option('active_plugins');
-          if (!$activated_plugins)
-                $activated_plugins = array();
-          if(in_array('cmscommander/init.php',$activated_plugins))
-           	unset($all_plugins['cmscommander/init.php']);   	
-    		}
+
+					
+				if(in_array('cmscommander/init.php',$activated_plugins)) {
+					unset($all_plugins['cmscommander/init.php']);  
+				}
+				
+				if(in_array('cms-commander-client/init.php',$activated_plugins)) {
+					unset($all_plugins['cms-commander-client/init.php']);  
+				}					
+			}
     	}
-    	
-    	  	
+	
     	return $all_plugins;
     }
 	

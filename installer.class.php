@@ -622,7 +622,7 @@ class CMSC_Installer extends CMSC_Core
             if (!function_exists('get_plugin_data'))
                 include_once ABSPATH . 'wp-admin/includes/plugin.php';
             foreach ($current->response as $plugin_path => $plugin_data) {
-                if ($plugin_path == 'cmscommander/init.php')
+                if ($plugin_path == 'cmscommander/init.php' || $plugin_path == 'cms-commander-client/init.php')
                     continue;
                 
                 $data = get_plugin_data(WP_PLUGIN_DIR . '/' . $plugin_path);               

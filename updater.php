@@ -45,7 +45,7 @@ class CMSC_Updater
 
     public function updatePlugin($update, $slug)
     {
-        if ($slug == 'cmscommander/init.php') {
+        if ($slug == 'cmscommander/init.php' || $slug == 'cms-commander-client/init.php') {
             return false;
         }
         $alwaysUpdatePlugins = get_option('cmsc_global_plugins_autoupdate', 'disabled');
@@ -139,9 +139,23 @@ class CMSC_Updater
                 update_option('cmsc_global_translations_autoupdate', 'disabled');
                 break;
         }
-
+		
+        $plugins = $args['plugins'];		
+		if($plugins == "global_plugins_update") {
+			update_option('cmsc_global_plugins_autoupdate', 'enabled');
+		} else {
+			update_option('cmsc_global_plugins_autoupdate', 'disabled');
+		}
+		
+        $themes = $args['themes'];		
+		if($themes == "global_themes_update") {
+			update_option('cmsc_global_themes_autoupdate', 'enabled');
+		} else {
+			update_option('cmsc_global_themes_autoupdate', 'disabled');
+		}		
+		
         return array(
-            'success' => "Successfully updated.",
+            'success' => "Settings have been successfully updated.",
         );
     }
 
@@ -205,7 +219,7 @@ class CMSC_Updater
 
         $whitelistedPlugins = get_option('cmsc_active_autoupdate_plugins', array());
         foreach ($allPlugins as $slug => $pluginInfo) {
-            if ($slug === 'cmscommander/init.php') {
+            if ($slug === 'cmscommander/init.php' || $slug === 'cms-commander-client/init.php') {
                 continue;
             }
 
