@@ -344,6 +344,7 @@ class CMSC_Post extends CMSC_Core
 	        }
         	
         } else {
+
         	if($post_data['cmsc_post_edit'] && $post_data['cmsc_force_publish']){
         	 $post_id = wp_insert_post($post_data);
         	} elseif($post_data['cmsc_post_edit'] && !$post_data['cmsc_force_publish']) {

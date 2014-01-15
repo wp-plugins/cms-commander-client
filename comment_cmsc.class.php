@@ -6,15 +6,34 @@ class CMSC_Comments extends CMSC_Core
         parent::__construct();
     }
 	
-	function get($args) 
-	{
-    	$num_comments  = 20;
-		//$status = "hold";
-		
+	function bulk_action($args) {	
+	
+		if($args['status'] == "spam") {$status = "spam";
+		} elseif($args['status'] == "trash") {$status = "trash";
+		} else {return array("error" => "Invalid status recieved");}
+	
+        $comments = get_comments('status='.$status);
+        foreach ($comments as $comment) {
+			$comment_id = $comment->comment_ID;
+			wp_delete_comment( $comment_id, 1 );
+        }
+		return true;
+	}
+	
+	function get($args) {
+
+		if(!empty($args['num'])) {$num_comments = $args['num'];} else {$num_comments = 20;}
+		if(!empty($args['status'])) {$status = $args['status'];} else {$status = "hold";}
+
         $comments = get_comments('status='.$status.'&number=' . $num_comments);
         foreach ($comments as &$comment) {
             $commented_post      = get_post($comment->comment_post_ID);
             $comment->post_title = $commented_post->post_title;
+			$comment->post_link = $commented_post->guid;
+			unset($comment->comment_agent);
+			unset($comment->comment_author_IP);
+			unset($comment->comment_type);		
+			unset($comment->comment_karma);					
         }
         
         return $comments;	

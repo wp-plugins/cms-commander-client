@@ -206,7 +206,7 @@ class CMSC_Comment extends CMSC_Core
 			$insert_reply = "INSERT INTO $wpdb->comments(comment_post_ID, comment_author, comment_author_email, comment_author_url, comment_author_IP, comment_date, comment_date_gmt, comment_content, comment_karma, comment_approved, comment_agent, comment_parent, user_id) VALUES(".$post_id.", '".$admins->user_login."', '".$admins->user_email."', '".$admins->user_url."', '".$_SERVER['REMOTE_ADDR']."', NOW(), NOW(), '%s', 0, 1, '".$_SERVER['HTTP_USER_AGENT']."', ".$comment_id.", ".$current_user->ID.")";
 			$insert_reply_res = $wpdb->query($wpdb->prepare($insert_reply, base64_decode($reply_text)));
 			$lastid = $wpdb->insert_id;
-			
+
 			$comments_approved = $this->comment_total();
 			
 			$comment_total_approved = 0;

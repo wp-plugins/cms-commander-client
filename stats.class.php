@@ -454,8 +454,9 @@ class CMSC_Stats extends CMSC_Core
                             $user = get_users(array(
                                 'blog_id' => $details->blog_id,
                                 'number' => 1
-                            ));							if( !empty($user) )
-							$stats['other_blogs'][$data->siteurl] = $user[0]->user_login;
+                            ));
+                            if (!empty($user))
+                                $stats['other_blogs'][$data->siteurl] = $user[0]->user_login;
 						}
 					}
                 }

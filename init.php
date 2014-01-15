@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.03
+Version: 2.04
 Author URI: http://cmscommander.com
 */
 
@@ -22,7 +22,7 @@ if(basename($_SERVER['SCRIPT_FILENAME']) == "init.php"):
     exit;
 endif;
 if(!defined('CMSC_WORKER_VERSION'))
-	define('CMSC_WORKER_VERSION', '2.03');
+	define('CMSC_WORKER_VERSION', '2.04');
 
 if ( !defined('CMSC_XFRAME_COOKIE')){
 	$siteurl = function_exists( 'get_site_option' ) ? get_site_option( 'siteurl' ) : get_option( 'siteurl' );
@@ -50,6 +50,7 @@ require_once("$cmsc_plugin_dir/user.class.php");
 require_once("$cmsc_plugin_dir/api.php");
 require_once("$cmsc_plugin_dir/comment_cmsc.class.php"); // CMSC
 require_once("$cmsc_plugin_dir/cmsc.class.php"); // CMSC
+require_once("$cmsc_plugin_dir/wprobot.class.php"); // CMSC
 require_once("$cmsc_plugin_dir/plugins/search/search.php");
 require_once("$cmsc_plugin_dir/plugins/cleanup/cleanup.php");
 require_once("$cmsc_plugin_dir/init_cmsc.php"); // CMSC
@@ -384,14 +385,14 @@ if( !function_exists ( 'cmsc_datasend' )) {
 	{
 		global $cmsc_core, $_cmsc_item_filter, $_cmsc_options;
 		if( isset($_cmsc_options['datacron']) ){
-			
+	
 			$_cmsc_remoteurl = get_option('home');
 			$_cmsc_remoteown = isset($_cmsc_options['dataown']) && !empty($_cmsc_options['dataown']) ? $_cmsc_options['dataown'] : false;
 			
 			if( empty($_cmsc_remoteown) )
 				return;
 			
-			$_cmsc_item_filter['pre_init_stats'] = array( 'core_update', 'hit_counter', 'comments', 'backups', 'posts', 'drafts', 'scheduled' );
+	/*		$_cmsc_item_filter['pre_init_stats'] = array( 'core_update', 'hit_counter', 'comments', 'backups', 'posts', 'drafts', 'scheduled' );
 			$_cmsc_item_filter['get'] = array( 'updates', 'errors' );
 			$cmsc_core->get_stats_instance();
 			
@@ -420,12 +421,16 @@ if( !function_exists ( 'cmsc_datasend' )) {
 			$pre_init_data = $cmsc_core->stats_instance->pre_init_stats($filter);
 			$init_data = $cmsc_core->stats_instance->get($filter);
 			
-			$data = array_merge($init_data, $pre_init_data);
-			$hash = $cmsc_core->get_secure_hash();
+			$data = array_merge($init_data, $pre_init_data);*/
+			$cmsc_core->get_cmsc_instance();
+			$data = $cmsc_core->cmsc_instance->get_stats(array());
 			
+			$hash = $cmsc_core->get_secure_hash();
+		
 			$datasend['datasend'] = $cmsc_core->encrypt_data($data);
 			$datasend['sitehome'] = base64_encode($_cmsc_remoteown.'[]'.$_cmsc_remoteurl);
 			$datasend['sitehash'] = md5($hash.$_cmsc_remoteown.$_cmsc_remoteurl);
+			$datasend['secure'] = $cmsc_core->get_random_signature();
 			
 			if ( !class_exists('WP_Http') )
                 include_once(ABSPATH . WPINC . '/class-http.php');
@@ -849,6 +854,21 @@ if( !function_exists ('cmsc_delete_links')) {
 	}
 }
 
+if( !function_exists ('cmsc_reply_comment')) {
+	function cmsc_reply_comment($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_comment_instance();
+		
+			$return = $cmsc_core->comment_instance->reply_comment($params);
+		if (is_array($return) && array_key_exists('error', $return))
+			cmsc_response($return['error'], false);
+		else {
+			cmsc_response($return, true);
+		}
+	}
+}
+
 if( !function_exists ( 'cmsc_add_user' )) {
 	function cmsc_add_user($params)
 	{
@@ -1095,7 +1115,7 @@ if( !function_exists('cmsc_call_scheduled_remote_upload') ){
 	
 
 if (!wp_next_scheduled('cmsc_datasend')) {
-	wp_schedule_event( time(), 'threehours', 'cmsc_datasend' );
+	wp_schedule_event( time(), 'fourhours', 'cmsc_datasend' );
 }
 add_action('cmsc_datasend', 'cmsc_datasend');
 	

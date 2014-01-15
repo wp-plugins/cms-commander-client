@@ -48,6 +48,9 @@ class CMSC_Functions extends CMSC_Core
 		$ids = array();		
 		foreach($args["post"] as $arg) {
 			$id = $po->create($arg);
+			if(is_array($id) && !empty($id["error"])) {
+				return $id;
+			}
 			$ids[] = $id;
 			if(!empty($arg['comments'])) {
 				$com = new CMSC_Comments(); 
@@ -55,7 +58,30 @@ class CMSC_Functions extends CMSC_Core
 					$cid = $com->create(array("post_id" => $id, "postdate" => "", "comment" => array("content" => $comment["content"], "author" => $comment["author"])));
 				}
 			}
-	
+			
+			if(!empty($arg['replies'])) {
+				
+				$post = get_post($id);
+				$title="Reply To: " . $post->post_title;
+				foreach($arg['replies'] as $comment) {		
+				
+					$my_post = array(
+							 'post_title' => $title,
+							 'post_content' => $comment["content"],
+							 'post_status' => 'publish',
+							 'post_author' => $comment["author"],
+							 'post_type' => 'reply',
+							 'post_date' => $arg['post_date'],
+							 'post_date_gmt' => $arg['post_date_gmt'],
+							 'post_parent' => $post->ID
+					); 				
+				
+					$args2 = array();
+					$args2['post_data']['post_data'] = $my_post;	
+					$args2['post_data']['content'] = $my_post;				
+					$repl = $po->create($args2);
+				}
+			}
 		}
 		return $ids;	
 	} 
@@ -137,8 +163,12 @@ class CMSC_Functions extends CMSC_Core
         foreach ($comments as &$comment) {
             $commented_post      = get_post($comment->comment_post_ID);
             $comment->post_title = $commented_post->post_title;
-			//$comment->comment_content = substr($comment->comment_content, 0, 600);		
-        }		
+			$comment->post_link = $commented_post->guid;
+			unset($comment->comment_agent);
+			unset($comment->comment_author_IP);
+			unset($comment->comment_type);
+			unset($comment->comment_karma);			
+		}		
 		$data["comments"] = $comments;
 
 		// Plugins
@@ -229,6 +259,14 @@ class CMSC_Functions extends CMSC_Core
 		// Backups
 		$data['backups'] = get_option('cmsc_backup_tasks');
 		$data['versions'] = CMSC_WORKER_VERSION;
+
+		if(function_exists("wp_count_comments")) {
+			$comments_count = wp_count_comments();
+			$data['counts']['comments_pending'] = $comments_count->moderated;
+			$data['counts']['comments_approved'] = $comments_count->approved;
+			$data['counts']['comments_spam'] = $comments_count->spam;
+			$data['counts']['comments_trash'] = $comments_count->trash;
+		}
 		
 		return $data;		
 

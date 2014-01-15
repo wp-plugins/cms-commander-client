@@ -116,6 +116,7 @@ class CMSC_Backup extends CMSC_Core {
     function set_memory() {   		   		
    		$changed = array('execution_time' => 0, 'memory_limit' => 0);
    		
+   		@ignore_user_abort(true);
    		$memory_limit = trim(ini_get('memory_limit'));    
     	$last = strtolower(substr($memory_limit, -1));
 		
@@ -133,7 +134,7 @@ class CMSC_Backup extends CMSC_Core {
  		
 		if ( (int) @ini_get('max_execution_time') < 1200 ) {
 			@ini_set('max_execution_time', 1200);
-     		@set_time_limit(1200); //ten minutes
+     		@set_time_limit(1200);
      		$changed['execution_time'] = 1;
      	}
      	
@@ -241,22 +242,30 @@ class CMSC_Backup extends CMSC_Core {
         $settings = $this->tasks;
         if (is_array($settings) && !empty($settings)) {
             foreach ($settings as $task_name => $setting) {
+			
 				if (isset($setting['task_args']['next']) && $setting['task_args']['next'] < time()) {
+
                     //if ($setting['task_args']['next'] && $_GET['force_backup']) {
                     if ($setting['task_args']['url'] && $setting['task_args']['task_id'] && $setting['task_args']['site_key']) {
-                        //Check orphan task
-                        $check_data = array(
-                            'task_name' => $task_name,
-                            'task_id' => $setting['task_args']['task_id'],
-                            'site_key' => $setting['task_args']['site_key'],
-                        	'worker_version' => CMSC_WORKER_VERSION
-                        );
-                        
-                        if (isset($setting['task_args']['account_info']['cmsc_google_drive']['google_drive_token'])) {
-	                    	$check_data['cmsc_google_drive_refresh_token'] = true;
-                        }
-                        
-                        $check = ""; // CMSC ADDED  $this->validate_task($check_data, $setting['task_args']['url']);
+ 
+						if(!empty($setting['task_args']['url']) && !empty($setting['task_args']['task_id'])) { // CMSC ADDED
+							//Check orphan task
+							$check_data = array(
+								'task_name' => $task_name,
+								'task_id' => $setting['task_args']['task_id'],
+								'site_key' => $setting['task_args']['site_key'],
+								'worker_version' => CMSC_WORKER_VERSION
+							);
+							
+							if (isset($setting['task_args']['account_info']['cmsc_google_drive']['google_drive_token'])) {
+								$check_data['cmsc_google_drive_refresh_token'] = true;
+							}						
+						
+							$check = $this->validate_task($check_data, $setting['task_args']['url']);
+						} else {
+							$check = "";
+						}
+
                          if($check == 'paused' || $check == 'deleted'){
                             continue;
                         } 
@@ -265,7 +274,7 @@ class CMSC_Backup extends CMSC_Core {
                         // This is the patch done in worker 3.9.22 because old worked provided message in the following format:
                         // token - not found or token - {...json...}
                         // The new message is a serialized string with google_drive_token or message.                        
-                        if ($worker_upto_3_9_22) {
+                        /*if ($worker_upto_3_9_22) {  // CMSC ADDED
 	                        $potential_token = substr($check, 8);
 	                        if (substr($check, 0, 8) == 'token - ' && $potential_token != 'not found') {
 	                        	$this->tasks[$task_name]['task_args']['account_info']['cmsc_google_drive']['google_drive_token'] = $potential_token;
@@ -279,7 +288,7 @@ class CMSC_Backup extends CMSC_Core {
 	                        	$settings[$task_name]['task_args']['account_info']['cmsc_google_drive']['google_drive_token'] = $potential_token;
 	                        	$setting['task_args']['account_info']['cmsc_google_drive']['google_drive_token'] = $potential_token;
                         	}
-                        }
+                        }*/
                         
                     }
 					
@@ -527,7 +536,7 @@ class CMSC_Backup extends CMSC_Core {
             }
             
             $temp          = $backup_settings[$task_name]['task_results'];
-            $temp          = array_values($temp);
+            $temp          = @array_values($temp);
             $paths['time'] = time();
             
             if ($task_name != 'Backup Now') {
@@ -795,7 +804,7 @@ class CMSC_Backup extends CMSC_Core {
     	}
     	
     	//Additional includes?
-    	if (!empty($include)) {
+    	if (!empty($include) && is_array($include)) {
     		foreach ($include as $data) {
     			if ($data) {
     				if ($sys == 'WIN')
@@ -1583,7 +1592,7 @@ class CMSC_Backup extends CMSC_Core {
      */
     function optimize_tables() {
         global $wpdb;
-        $query  = 'SHOW TABLES';
+        $query  = 'SHOW TABLE STATUS';
         $tables = $wpdb->get_results($query, ARRAY_A);
         foreach ($tables as $table) {
             if (in_array($table['Engine'], array(
@@ -3277,42 +3286,26 @@ class CMSC_Backup extends CMSC_Core {
         if (!class_exists('WP_Http')) {
             include_once(ABSPATH . WPINC . '/class-http.php');
         }
-        
-        $worker_upto_3_9_22 = (CMSC_WORKER_VERSION <= '3.9.22'); // worker version is less or equals to 3.9.22
+
         $params         = array('timeout'=>100);
         $params['body'] = $args;
         $result         = wp_remote_post($url, $params);
-        
-        if ($worker_upto_3_9_22) {
-	        if (is_array($result) && $result['body'] == 'cmsc_delete_task') {
-	            //$tasks = $this->get_backup_settings();
-	            $tasks = $this->tasks;
+
+		if (is_array($result) && $result['body']) {
+			$response = unserialize($result['body']);
+			if ($response['message'] == 'cmsc_delete_task') {
+				$tasks = $this->tasks;
 				unset($tasks[$args['task_name']]);
-	            $this->update_tasks($tasks);
-	            $this->cleanup();
-	            return 'deleted';
-	        } elseif(is_array($result) && $result['body'] == 'cmsc_pause_task'){
-	        	return 'paused';
-	        } elseif(is_array($result) && substr($result['body'], 0, 8) == 'token - '){
-	        	return $result['body'];
-	        }
-        } else {
-        	if (is_array($result) && $result['body']) {
-        		$response = unserialize($result['body']);
-        		if ($response['message'] == 'cmsc_delete_task') {
-        			$tasks = $this->tasks;
-					unset($tasks[$args['task_name']]);
-        			$this->update_tasks($tasks);
-        			$this->cleanup();
-        			return 'deleted';
-        		} elseif ($response['message'] == 'cmsc_pause_task') {
-        			return 'paused';
-        		} elseif ($response['message'] == 'cmsc_do_task') {
-        			return $response;
-        		}
-        	}
-        }
-	    
+				$this->update_tasks($tasks);
+				$this->cleanup();
+				return 'deleted';
+			} elseif ($response['message'] == 'cmsc_pause_task') {
+				return 'paused';
+			} elseif ($response['message'] == 'cmsc_do_task') {
+				return $response;
+			}
+		}
+
 	    return false;
     }
     
@@ -3369,7 +3362,7 @@ class CMSC_Backup extends CMSC_Core {
         $this->tasks = $tasks;
 
         $result = update_option('cmsc_backup_tasks', $tasks);
-		//$this->_log($tasks["testtt"]["task_results"]);$this->_log("Saving Worked: " . $result); /// CMSC LOG
+		$this->_log($tasks["testt3"]["task_results"]);$this->_log("Saving Worked: " . $result); /// CMSC LOG
     }
     
     /**
