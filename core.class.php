@@ -202,9 +202,9 @@ class CMSC_Core extends CMSC_Helper
 		
 		$cmsc_worker_brand = get_option("cmsc_worker_brand");
 		
-		if (!$cmsc_worker_brand['hide_managed_remotely']) {
+		if (is_array($cmsc_worker_brand) && empty($cmsc_worker_brand['hide_managed_remotely'])) {
 			add_action('rightnow_end', array( &$this, 'add_right_now_info' ));
-		}		
+		}
 		
 		add_action('admin_init', array(&$this,'admin_actions'));  		
 		add_action('init', array( &$this, 'cmsc_remote_action'), 9999);
