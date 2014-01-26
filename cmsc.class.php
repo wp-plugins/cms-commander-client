@@ -479,23 +479,29 @@ class CMSC_Functions extends CMSC_Core
 		return array("plugins" => $plugins);
 	}
 
-	function update_plugins($args)
-	{	
+	function update_plugins($args) {
+	
+		if(empty($args['plugins']) && $args['updateall'] != 1) {
+			return array('error' => 'No plugin files to upgrade.');				
+		}
+	
 		$installer = new CMSC_Installer();
+		
+		if(!empty($args['plugins'])) {
+			$plugin_files = $args['plugins'];
+		}		
 		
 		if(1 == $args['updateall']) {
 			$upgrade_plugins = $installer->get_upgradable_plugins();
-		} elseif(empty($args['plugins'])) {
-			return array('error' => 'No plugin files to upgrade.');		
-		} else {
-			$plugin_files = $args['plugins'];
-		}
-	
-		if(!empty($upgrade_plugins)){
-			$plugin_files = array();
-			foreach($upgrade_plugins as $plugin){				
-				if(isset($plugin->file))
-					$plugin_files[$plugin->file] = $plugin->old_version;
+			
+			if(!empty($upgrade_plugins)){
+				$plugin_files = array();
+				foreach($upgrade_plugins as $plugin){				
+					if(isset($plugin->file))
+						$plugin_files[$plugin->file] = $plugin->old_version;
+				}
+			} else {
+				return array('error' => 'No plugin files to upgrade found.');		
 			}
 		}
 		
@@ -510,7 +516,7 @@ class CMSC_Functions extends CMSC_Core
 		if(!empty($plugin_files)) {
 			$upgrades = $installer->upgrade_plugins($plugin_files);
 		} else {
-			return array('error' => 'No plugin files to upgrade found.');		
+			return array('error' => 'No plugin files to upgrade found. Updates already installed or plugins set to ignore.');		
 		}		
 	
 		return $upgrades;

@@ -81,7 +81,7 @@ class CMSC_User extends CMSC_Core
 	
 		$args['user_login'] = $args['user']['username'];
 		$args['user_email'] = $args['user']['email'];
-		$args['user_pass '] = $args['user']['password'];
+		$args['user_pass'] = $args['user']['password'];
 		$args['first_name'] = $args['user']['firstname'];
 		
     	if(!function_exists('username_exists') || !function_exists('email_exists'))
