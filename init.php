@@ -50,7 +50,6 @@ require_once("$cmsc_plugin_dir/user.class.php");
 require_once("$cmsc_plugin_dir/api.php");
 require_once("$cmsc_plugin_dir/comment_cmsc.class.php"); // CMSC
 require_once("$cmsc_plugin_dir/cmsc.class.php"); // CMSC
-require_once("$cmsc_plugin_dir/wprobot.class.php"); // CMSC
 require_once("$cmsc_plugin_dir/plugins/search/search.php");
 require_once("$cmsc_plugin_dir/plugins/cleanup/cleanup.php");
 require_once("$cmsc_plugin_dir/init_cmsc.php"); // CMSC
