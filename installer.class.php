@@ -148,7 +148,7 @@ class CMSC_Installer extends CMSC_Core
         
         if (!$this->is_server_writable()) {
             return array(
-                'error' => 'Failed, please <a target="_blank" href="http://cmscommander.com/user-guide/faq/my-pluginsthemes-fail-to-update-or-i-receive-a-yellow-ftp-warning">add FTP details</a>'
+                'error' => 'Failed, please <a target="_blank" href="http://cmscommander.com/documentation/faqs-problems/#q3">add FTP details</a>'
             );
         }
         

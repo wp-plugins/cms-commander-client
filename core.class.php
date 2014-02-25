@@ -184,7 +184,8 @@ class CMSC_Core extends CMSC_Helper
 			'update_plugins' => 'cmsc_plugins_update',	
 			'update_core' => 'cmsc_core_update',	
 			'get_themes' => 'cmsc_themes_get',
-			'update_themes' => 'cmsc_themes_update',			
+			'update_themes' => 'cmsc_themes_update',	
+	
 		);
 		
 		$cmsc_worker_brand = get_option("cmsc_worker_brand");
@@ -586,7 +587,7 @@ class CMSC_Core extends CMSC_Helper
             
             if (!$this->is_server_writable()) {
                 return array(
-                    'error' => 'Failed, please <a target="_blank" href="http://cmscommander.com/user-guide/faq/my-pluginsthemes-fail-to-update-or-i-receive-a-yellow-ftp-warning">add FTP details for automatic upgrades.</a>'
+                    'error' => 'Failed, please <a target="_blank" href="http://cmscommander.com/documentation/faqs-problems/#q3">add FTP details for automatic upgrades.</a>'
                 );
             }
 			

@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.05
+Version: 2.06
 Author URI: http://cmscommander.com
 */
 
@@ -22,7 +22,7 @@ if(basename($_SERVER['SCRIPT_FILENAME']) == "init.php"):
     exit;
 endif;
 if(!defined('CMSC_WORKER_VERSION'))
-	define('CMSC_WORKER_VERSION', '2.05');
+	define('CMSC_WORKER_VERSION', '2.06');
 
 if ( !defined('CMSC_XFRAME_COOKIE')){
 	$siteurl = function_exists( 'get_site_option' ) ? get_site_option( 'siteurl' ) : get_option( 'siteurl' );
@@ -155,6 +155,7 @@ if( !function_exists('cmsc_authenticate')) {
 
         if($_cmsc_data['action'] === 'add_site') {
             $_cmsc_auth = true;
+			return;
         } else {
             $_cmsc_auth = $cmsc_core->authenticate_message($_cmsc_data['action'] . $_cmsc_data['id'], $_cmsc_data['signature'], $_cmsc_data['id']);
         }
@@ -169,7 +170,8 @@ if( !function_exists('cmsc_authenticate')) {
             if(@getenv('IS_WPE'))
                 wp_set_auth_cookie($user->ID);			
         }
-
+        if(!defined("WP_ADMIN"))
+            define(WP_ADMIN,true);
     }
 }
 
@@ -184,7 +186,7 @@ if( !function_exists ( 'cmsc_parse_request' )) {
 	
         ob_start();
         $_wp_using_ext_object_cache = false;
-        @set_time_limit(600);
+        @set_time_limit(1200);
 
         if ($_cmsc_data['action'] === 'add_site') {
             cmsc_add_site($_cmsc_data['params']);
@@ -446,7 +448,7 @@ if( !function_exists ( 'cmsc_datasend' )) {
 					if($settings['worker_brand']){
 						$brand = $settings['worker_brand'];
 					}
-					update_option("cmsc_worker_brand",$brand);
+					//update_option("cmsc_worker_brand",$brand);
 					/* change worker version */
 					$w_version = $settings['worker_updates']['version'];
 					$w_url = $settings['worker_updates']['url'];

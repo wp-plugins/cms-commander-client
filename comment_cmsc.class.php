@@ -8,15 +8,18 @@ class CMSC_Comments extends CMSC_Core
 	
 	function bulk_action($args) {	
 	
-		if($args['status'] == "spam") {$status = "spam";
-		} elseif($args['status'] == "trash") {$status = "trash";
-		} else {return array("error" => "Invalid status recieved");}
-	
-        $comments = get_comments('status='.$status);
+        $comments = get_comments('status=spam');
         foreach ($comments as $comment) {
 			$comment_id = $comment->comment_ID;
 			wp_delete_comment( $comment_id, 1 );
         }
+		
+        $comments = get_comments('status=trash');
+        foreach ($comments as $comment) {
+			$comment_id = $comment->comment_ID;
+			wp_delete_comment( $comment_id, 1 );
+        }
+		
 		return true;
 	}
 	

@@ -46,21 +46,21 @@ function cleanup_delete_cmsc($params = array())
                 if (cmsc_delete_all_revisions($revision_filter['revisions'])) {
                     $return_array['revision'] = 'OK';
                 } else {
-                    $return_array['revision_error'] = 'Failed, please try again';
+                    $return_array['revision_error'] = 'OK, nothing to do';
                 }
                 break;
             case 'overhead':
                 if (cmsc_handle_overhead(true)) {
                     $return_array['overhead'] = 'OK';
                 } else {
-                    $return_array['overhead_error'] = 'Failed, please try again';
+                    $return_array['overhead_error'] = 'OK, nothing to do';
                 }
                 break;
             case 'comment':
                 if (cmsc_delete_spam_comments()) {
                     $return_array['comment'] = 'OK';
                 } else {
-                    $return_array['comment_error'] = 'Failed, please try again';
+                    $return_array['comment_error'] = 'OK, nothing to do';
                 }
                 break;
             default:
@@ -78,7 +78,7 @@ function cmsc_num_revisions($filter)
 {
     global $wpdb;
     $sql           = "SELECT COUNT(*) FROM $wpdb->posts WHERE post_type = 'revision'";
-    $num_revisions = $wpdb->get_var($wpdb->prepare($sql));
+    $num_revisions = $wpdb->get_var($sql);
 	if(isset($filter['num_to_keep']) && !empty($filter['num_to_keep'])){
 		$num_rev = str_replace("r_","",$filter['num_to_keep']);
 		if($num_revisions < $num_rev){
@@ -94,7 +94,7 @@ function cmsc_select_all_revisions()
 {
     global $wpdb;
     $sql       = "SELECT * FROM $wpdb->posts WHERE post_type = 'revision'";
-    $revisions = $wpdb->get_results($wpdb->prepare($sql));
+    $revisions = $wpdb->get_results($sql);
     return $revisions;
 }
 
@@ -120,7 +120,7 @@ function cmsc_delete_all_revisions($filter)
 	
     $sql       = "DELETE a,b,c FROM $wpdb->posts a LEFT JOIN $wpdb->term_relationships b ON (a.ID = b.object_id) LEFT JOIN $wpdb->postmeta c ON (a.ID = c.post_id) WHERE a.post_type = 'revision'".$where;
     
-	$revisions = $wpdb->query($wpdb->prepare($sql));
+	$revisions = $wpdb->query($sql);
     
     return $revisions;
 }
@@ -137,12 +137,12 @@ function cmsc_handle_overhead($clear = false)
     $tot_data   = 0;
     $tot_idx    = 0;
     $tot_all    = 0;
-    $query      = 'SHOW TABLE STATUS FROM ' . DB_NAME;
-    $tables     = $wpdb->get_results($wpdb->prepare($query), ARRAY_A);
+    $query      = 'SHOW TABLE STATUS';
+    $tables     = $wpdb->get_results($query, ARRAY_A);
     $total_gain = 0;
 	$table_string = '';
     foreach ($tables as $table) {
-        if (in_array($table['Engine'], array(
+        if (isset($table['Engine']) && in_array($table['Engine'], array(
             'MyISAM',
             'ISAM',
             'HEAP',
@@ -164,7 +164,15 @@ function cmsc_handle_overhead($clear = false)
                     $table_string .= $table['Name'] . ",";
                 }
             }
-        } elseif ($table['Engine'] == 'InnoDB') {
+        } elseif (isset($table['Engine']) && $table['Engine'] == 'InnoDB') {
+            $innodb_file_per_table = $wpdb->get_results("SHOW VARIABLES LIKE 'innodb_file_per_table'");
+            if($innodb_file_per_table[0]->Value==="ON")
+            {
+                if ($table['Data_free'] > 0) {
+                    $total_gain += $table['Data_free'] / 1024;
+                    $table_string .= $table['Name'] . ",";
+                }
+            }
             //$total_gain +=  $table['Data_free'] > 100*1024*1024 ? $table['Data_free'] / 1024 : 0;
         }
     }
@@ -192,7 +200,7 @@ function cmsc_num_spam_comments()
 {
     global $wpdb;
     $sql       = "SELECT COUNT(*) FROM $wpdb->comments WHERE comment_approved = 'spam'";
-    $num_spams = $wpdb->get_var($wpdb->prepare($sql));
+    $num_spams = $wpdb->get_var($sql);
     return $num_spams;
 }
 
@@ -203,7 +211,7 @@ function cmsc_delete_spam_comments()
     $total = 0;
     while ($spams) {
         $sql   = "DELETE FROM $wpdb->comments WHERE comment_approved = 'spam' LIMIT 200";
-        $spams = $wpdb->query($wpdb->prepare($sql));
+        $spams = $wpdb->query($sql);
         $total += $spams;
         if ($spams)
             usleep(100000);
@@ -216,7 +224,7 @@ function cmsc_get_spam_comments()
 {
     global $wpdb;
     $sql   = "SELECT * FROM $wpdb->comments as a LEFT JOIN $wpdb->commentmeta as b WHERE a.comment_ID = b.comment_id AND a.comment_approved = 'spam'";
-    $spams = $wpdb->get_results($wpdb->prepare($sql));
+    $spams = $wpdb->get_results($sql);
     return $spams;
 }
 ?>

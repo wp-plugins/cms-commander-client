@@ -1,8 +1,8 @@
-﻿=== CMS Commander Plugin ===
+﻿=== CMS Commander Client ===
 Contributors: thoefter
 Tags: cmscommander, cms, admin, analytics, amazon, api, google, drive, authentication, automatic, backup, dashboard, dropbox, integration, manage, s3, stats, affiliate, flickr, images, affiliate, ads, youtube, videos, yahoo
-Tested up to: 3.8
-Stable tag: 2.05
+Tested up to: 3.8.1
+Stable tag: 2.06
 
 CMS Commander makes it possible to manage all your WordPress weblogs from a single dashboard.
 
@@ -32,6 +32,11 @@ Credits: [Vladimir Prelovac](http://prelovac.com/vladimir) for his worker plugin
 
 == Changelog ==  
 
+= 2.06 =
+- Added: database optimization feature
+- Added: clear spam comments and misc tools feature
+- Fixed: Improved automatic updating of CMS Commander client
+
 = 2.05 =
 - Added: Activity log
 - Fixed: Bug that prevented correct password setup on bulk user account creation
@@ -45,7 +50,7 @@ Credits: [Vladimir Prelovac](http://prelovac.com/vladimir) for his worker plugin
 = 2.03 =
 - Added: Support for managing automatic updates on all WordPress blogs
 - Added: Ignore or install single plugin updates on the dashboard
-- Fixes: Minor bugs related to WP 3.8
+- Fixed: Minor bugs related to WP 3.8
 
 = 2.02 =
 - First release in WP plugin directory.
@@ -69,4 +74,4 @@ The CMS Commander Plugin is free software: you can redistribute it and/or modify
 
 The CMS Commander Plugin is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along with ManageWP Worker. If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License along with CMS Commander. If not, see <http://www.gnu.org/licenses/>.

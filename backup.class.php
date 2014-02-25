@@ -1515,16 +1515,34 @@ class CMSC_Backup extends CMSC_Core {
         	return array('error' => 'Cannot access database file.');
         }
         
-        $brace     = (substr(PHP_OS, 0, 3) == 'WIN') ? '"' : '';
-        $command   = $brace . $paths['mysql'] . $brace . ' --host="' . DB_HOST . '" --user="' . DB_USER . '" --password="' . DB_PASSWORD . '" --default-character-set="utf8" ' . DB_NAME . ' < ' . $brace . $file_name . $brace;
-        
+        $port = 0;
+        $host = DB_HOST;
+
+        if (strpos($host, ':') !== false){
+            list($host, $port) = explode(':', $host);
+        }
+        $socket = false;
+
+        if (strpos($host, '/') !== false || strpos($host, '\\') !== false) {
+            $socket = true;
+        }
+
+        if ($socket) {
+            $connection = sprintf('--socket=%s', escapeshellarg($host));
+        } else {
+            $connection = sprintf('--host=%s --port=%s', escapeshellarg($host), escapeshellarg($port));
+        }
+
+        $command = "%s %s --user=%s --password=%s --default-character-set=%s %s < %s";
+        $command = sprintf($command, escapeshellarg($paths['mysql']), $connection, escapeshellarg(DB_USER), escapeshellarg(DB_PASSWORD), escapeshellarg('utf8'), escapeshellarg(DB_NAME), escapeshellarg($file_name));
+
         ob_start();
         $result = $this->cmsc_exec($command);
         ob_get_clean();
         if (!$result) {
         	$this->_log('DB restore fallback to PHP');
             //try php
-            $this->restore_db_php($file_name);
+            return $this->restore_db_php($file_name);
         }
         
         @unlink($file_name);
@@ -1594,24 +1612,15 @@ class CMSC_Backup extends CMSC_Core {
         global $wpdb;
         $query  = 'SHOW TABLE STATUS';
         $tables = $wpdb->get_results($query, ARRAY_A);
+		$table_string = '';
         foreach ($tables as $table) {
-            if (in_array($table['Engine'], array(
-                'MyISAM',
-                'ISAM',
-                'HEAP',
-                'MEMORY',
-                'ARCHIVE'
-            )))
-                $table_string .= $table['Name'] . ",";
-            elseif ($table['Engine'] == 'InnoDB') {
-                $optimize = $wpdb->query("ALTER TABLE {$table['Name']} ENGINE=InnoDB");
-            }
+            $table_string .= $table['Name'] . ",";
         }
         
-        $table_string = rtrim($table_string);
+        $table_string = rtrim($table_string, ",");
         $optimize     = $wpdb->query("OPTIMIZE TABLE $table_string");
-        
-        return $optimize ? true : false;
+
+        return (bool)$optimize;
     }
     
     /**
@@ -1641,9 +1650,14 @@ class CMSC_Backup extends CMSC_Core {
                 $paths['mysql'] = 'mysql'; // try anyway
             
             $paths['mysqldump'] = $this->cmsc_exec('which mysqldump', true);
-            if (empty($paths['mysqldump']))
+            if (empty($paths['mysqldump'])){
                 $paths['mysqldump'] = 'mysqldump'; // try anyway
-        }
+                $baseDir = $wpdb->get_var('select @@basedir');
+                if ($baseDir) {
+                    $paths['mysqldump'] = $baseDir.'/bin/mysqldump';
+                }
+            }       
+		}
         
         return $paths;
     }
@@ -1901,7 +1915,7 @@ class CMSC_Backup extends CMSC_Core {
         $sftp_password = $sftp_password?$sftp_password:"";
         //     file_put_contents("sftp_log.txt","sftp pass:".$sftp_password,FILE_APPEND);
         //      file_put_contents("sftp_log.txt","Creating NetSFTP",FILE_APPEND);
-        $sftp = new Net_SFTP($sftp_hostname);
+        $sftp = new Net_SFTP($sftp_hostname,$port);
         //       file_put_contents("sftp_log.txt","Created NetSFTP",FILE_APPEND);
         $remote = $sftp_remote_folder ? trim($sftp_remote_folder,"/")."/" : '';
         if (!$sftp->login($sftp_username, $sftp_password)) {
@@ -3022,6 +3036,7 @@ class CMSC_Backup extends CMSC_Core {
         if (empty($args))
             return false;
         extract($args);
+		$task_name = stripslashes($task_name);
         if (isset($google_drive_token)) {
         	$this->tasks[$task_name]['task_args']['account_info']['cmsc_google_drive']['google_drive_token'] = $google_drive_token;
         }
@@ -3377,6 +3392,11 @@ class CMSC_Backup extends CMSC_Core {
       		@mysql_close($wpdb->dbh);
         	$wpdb = new wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST );
         	wp_set_wpdb_vars(); 
+            if (function_exists('is_multisite')) {
+                if (is_multisite()) {
+                    $wpdb->set_blog_id(get_current_blog_id());
+                }
+            }			
       	}
     }
     

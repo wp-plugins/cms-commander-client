@@ -268,8 +268,15 @@ class CMSC_Functions extends CMSC_Core
 			$data['counts']['comments_trash'] = $comments_count->trash;
 		}
 		
+		/*if(function_exists("cmsc_num_revisions")) {
+			$data['counts']['num_revisions'] = cmsc_num_revisions("r_6");
+		}*/
+		
+		if(function_exists("cmsc_handle_overhead")) {
+			$data['counts']['overhead'] = cmsc_handle_overhead(false);
+		}		
+		
 		return $data;		
-
 	}
 	
     function get_categories()
