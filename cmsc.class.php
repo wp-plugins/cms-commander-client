@@ -302,8 +302,8 @@ class CMSC_Functions extends CMSC_Core
 
     function get_settings()
     {	
-
-		return get_alloptions();
+		//return get_alloptions();
+		return wp_load_alloptions();
 	}	
 	
     function save_settings($args)
@@ -315,6 +315,9 @@ class CMSC_Functions extends CMSC_Core
 		}			
 	
 		foreach($settings as $name => $key) {
+		
+			//return $name . " LLL " . $key;
+		
 			if(!empty($name)) {
 				update_option($name, $key);
 			}
