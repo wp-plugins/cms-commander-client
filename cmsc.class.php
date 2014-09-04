@@ -390,10 +390,16 @@ class CMSC_Functions extends CMSC_Core
 				$cats[] = $cat->name;
 			}
 			
+			$meta_values = get_post_meta( $post->ID );
+			
 			///$post_tags = wp_get_post_tags($post->ID);
 			
+			$src = wp_get_attachment_image_src(get_post_thumbnail_id($post->ID), "full");
+			
+			$posts[$i]->featured_image = $src[0];
 			$posts[$i]->post_categories = $cats;
 			$posts[$i]->post_tags = $post_tags;
+			$posts[$i]->post_meta = $meta_values;
 			$i++;
 		}
 		

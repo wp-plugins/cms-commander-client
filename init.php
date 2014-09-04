@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.07
+Version: 2.08
 Author URI: http://cmscommander.com
 */
 
@@ -50,6 +50,7 @@ require_once("$cmsc_plugin_dir/user.class.php");
 require_once("$cmsc_plugin_dir/api.php");
 require_once("$cmsc_plugin_dir/comment_cmsc.class.php"); // CMSC
 require_once("$cmsc_plugin_dir/cmsc.class.php"); // CMSC
+require_once("$cmsc_plugin_dir/wprobot.class.php"); // CMSC
 require_once("$cmsc_plugin_dir/plugins/search/search.php");
 require_once("$cmsc_plugin_dir/plugins/cleanup/cleanup.php");
 require_once("$cmsc_plugin_dir/init_cmsc.php"); // CMSC

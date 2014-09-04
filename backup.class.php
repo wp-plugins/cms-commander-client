@@ -1399,8 +1399,8 @@ class CMSC_Backup extends CMSC_Core {
             $query = "UPDATE " . $new_table_prefix . "options  SET option_value = %s WHERE option_name = 'siteurl'";
             $wpdb->query($wpdb->prepare($query, $home));
             //Replace content urls
-            $regexp1 = 'src="(.*)$old(.*)"';
-            $regexp2 = 'href="(.*)$old(.*)"';
+            $regexp1 = 'src="(.*)'.$old.'(.*)"';
+            $regexp2 = 'href="(.*)'.$old.'(.*)"';
             $query = "UPDATE " . $new_table_prefix . "posts SET post_content = REPLACE (post_content, %s,%s) WHERE post_content REGEXP %s OR post_content REGEXP %s";
             $wpdb->query($wpdb->prepare($query, array($old, $home, $regexp1, $regexp2)));
 

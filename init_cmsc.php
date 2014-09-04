@@ -133,7 +133,7 @@ if( !function_exists ( 'cmsc_save_settings' )) {
 		global $cmsc_core;
 		$cmsc_core->get_cmsc_instance();
 			$return = $cmsc_core->cmsc_instance->save_settings($params);
-		if ($return == true)		
+		if ($return === true)		
 			cmsc_response($return, true);
 		else {
 			cmsc_response($return, false);
@@ -382,6 +382,162 @@ if( !function_exists ( 'cmsc_bulk_edit' )) {
 			cmsc_response($return, true);
 		else
 			cmsc_response($return, false);
+	}
+}
+
+/* WP ROBOT CONTROL CENTER */
+
+if( !function_exists ( 'cmsc_wpr_get_campaigns' )) {
+	function cmsc_wpr_get_campaigns($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_get_campaigns($params);
+		if ((is_array($return) || is_object($return)) && empty($return['error']))		
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_get_campaign' )) {
+	function cmsc_wpr_get_campaign($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_get_campaign($params);
+		if (is_array($return) || is_object($return))		
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_campaign_controls' )) {
+	function cmsc_wpr_campaign_controls($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_campaign_controls($params);
+		if ((is_array($return) || is_object($return)) && empty($return['error']))		
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_create_campaign' )) {
+	function cmsc_wpr_create_campaign($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_create_campaign($params);
+		if ((is_array($return) || is_object($return)) && empty($return['error']))		
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_get_options' )) {
+	function cmsc_wpr_get_options($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_get_options($params);
+		if (is_array($return) || is_object($return))		
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_update_options' )) {
+	function cmsc_wpr_update_options($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_edit_options($params);
+		if ($return === true)		
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_get_log' )) {
+	function cmsc_wpr_get_log($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_get_log($params);
+		if (is_array($return) || is_object($return))			
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_get_post_templates' )) {
+	function cmsc_wpr_get_post_templates($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_get_post_templates($params);
+		if (is_array($return) || is_object($return))			
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_get_module_templates' )) {
+	function cmsc_wpr_get_module_templates($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_get_module_templates($params);
+		if (is_array($return) || is_object($return))			
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_save_module_templates' )) {
+	function cmsc_wpr_save_module_templates($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_edit_module_templates($params);
+		if ($return == true)			
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
+	}
+}
+
+if( !function_exists ( 'cmsc_wpr_save_post_templates' )) {
+	function cmsc_wpr_save_post_templates($params)
+	{
+		global $cmsc_core;
+		$cmsc_core->get_wpr_instance();
+			$return = $cmsc_core->wpr_instance->wpr_xmlrpc_edit_post_templates($params);
+		if ($return == true)			
+			cmsc_response($return, true);
+		else {
+			cmsc_response($return, false);
+		}
 	}
 }
     

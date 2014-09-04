@@ -59,12 +59,11 @@ class CMSC_Post extends CMSC_Core
 			} else {
 				// Create User
 				$uclass = new CMSC_User(); 
-				$uresp = $uclass->add_user(array("user_login" => $post_data["post_author"], "user_email" => $post_data["post_author"].rand(1,111)."@somedomain.com", "user_pass" => "cmscommander", "first_name" => ""));
+				$uresp = $uclass->add_user(array("user" => array("username" => $post_data["post_author"], "email" => $post_data["post_author"].rand(1,999)."@somedomain.com", "password" => "cmscommander".rand(1,999), "firstname" => "", "role" => "editor")));
                 if(is_wp_error($uresp)){
-                	return $uresp->get_error_message();
+					return array('error' => "Author name does not exist and automatic user creation failed: " . $uresp->get_error_message());
                 } elseif(!empty($uresp["error"])) {
-					return "Username does not exist and automatic creation failed.";
-					//$post_data["post_author"] = 1;
+					return array('error' => "Author name does not exist and automatic user creation failed.");
 				} else {
 					$post_data["post_author"] = $uresp;
 				}
@@ -126,7 +125,7 @@ class CMSC_Post extends CMSC_Core
                 }
                 
                 $pic_from_other_site = $get_urls[$get_url_k][4];
-                if(strpos($pic_from_other_site,'cmscommander.com') === false){
+                if(strpos($pic_from_other_site,'cmscommander.com') === false && strpos($pic_from_other_site,'flickr') === false && strpos($pic_from_other_site,'pixabay.com') === false){
                    continue;
                 }	
 				

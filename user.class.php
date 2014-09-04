@@ -83,7 +83,8 @@ class CMSC_User extends CMSC_Core
 		$args['user_email'] = $args['user']['email'];
 		$args['user_pass'] = $args['user']['password'];
 		$args['first_name'] = $args['user']['firstname'];
-		
+		$args['role'] = $args['user']['role'];
+
     	if(!function_exists('username_exists') || !function_exists('email_exists'))
     	 include_once(ABSPATH . WPINC . '/registration.php');
       
@@ -96,7 +97,9 @@ class CMSC_User extends CMSC_Core
 			if(!function_exists('wp_insert_user'))
 			 include_once (ABSPATH . 'wp-admin/includes/user.php');
 			
-			$user_id =  wp_insert_user($args);
+			$user_id = wp_insert_user($args);
+			
+			wp_update_user( array ('ID' => $user_id, 'role' => $args['role'] ) ) ;
 			
 			if($user_id){
 			
