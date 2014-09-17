@@ -675,12 +675,20 @@ if( !function_exists ( 'cmsc_clean_orphan_backups' )) {
 add_filter( 'cmsc_website_add', 'cmsc_readd_backup_task' );
 
 function cmsc_run_backup_action() {
-	if(isset($_POST['cmsc_backup_nonce']))
-		if (!wp_verify_nonce($_POST['cmsc_backup_nonce'], 'cmsc-backup-nonce')) return false;
-	$public_key = get_option('_cmsc_public_key');
-	if (!isset($_POST['public_key']) || $public_key !== $_POST['public_key']) return false;
+
+    //if (!isset($_POST['cmsc_backup_nonce']) || (isset($_POST['cmsc_backup_nonce']) && !wp_verify_nonce($_POST['cmsc_backup_nonce'], 'cmsc-backup-nonce'))) {
+    if (!isset($_POST['cmsc_backup_nonce'])) {
+        return false;
+    }
+
+    $public_key = get_option('_cmsc_public_key');
+    if (!isset($_POST['public_key']) || $public_key !== $_POST['public_key']) {
+        return false;
+    }
+
 	$args = @json_decode(stripslashes($_POST['args']), true);
 	if (!$args) return false;
+	
 	$cron_action = isset($_POST['backup_cron_action']) ? $_POST['backup_cron_action'] : false;
 	if ($cron_action) {
 		do_action($cron_action, $args);
@@ -1102,7 +1110,7 @@ if( !function_exists('cmsc_call_scheduled_remote_upload') ){
 	function cmsc_call_scheduled_remote_upload($args) {
 		global $cmsc_core, $_wp_using_ext_object_cache;
 		$_wp_using_ext_object_cache = false;
-		
+
 		$cmsc_core->get_backup_instance();
 		if (isset($args['task_name'])) {
 			$cmsc_core->backup_instance->remote_backup_now($args);
