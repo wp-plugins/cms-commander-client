@@ -310,8 +310,9 @@ class CMSC_Backup extends CMSC_Core {
 					
                 	$result = $this->backup($setting['task_args'], $task_name);
                     $error  = '';
-                    
+					
                     if (is_array($result) && array_key_exists('error', $result)) {
+					
                     	$error = $result;
                     	$this->set_backup_task(array(
                     		'task_name' => $task_name,
@@ -319,14 +320,20 @@ class CMSC_Backup extends CMSC_Core {
                     		'error' => $error
                     	));
                     } else {
+	
                         if (@count($setting['task_args']['account_info'])) {
+						
+							$this->_log("CMSC - we are in remote processing...");
+						
                             // Old way through sheduling.
                             // wp_schedule_single_event(time(), 'cmsc_scheduled_remote_upload', array('args' => array('task_name' => $task_name)));
-                            $nonce = substr(wp_hash(wp_nonce_tick() . 'cmsc-backup-nonce' . 0, 'nonce'), -12, 10);
+                            //$nonce = substr(wp_hash(wp_nonce_tick() . 'cmsc-backup-nonce' . 0, 'nonce'), -12, 10);
+							$nonce = wp_create_nonce("cmsc-backup-nonce");
                             $cron_url = site_url('index.php');
                             $backup_file = $this->tasks[$task_name]['task_results'][count($this->tasks[$task_name]['task_results']) - 1]['server']['file_url'];
                             $del_host_file = $this->tasks[$task_name]['task_args']['del_host_file'];
                             $public_key = get_option('_cmsc_public_key');
+							
                             $args = array(
                                 'body' => array(
                                     'backup_cron_action' => 'cmsc_remote_upload',
@@ -338,7 +345,8 @@ class CMSC_Backup extends CMSC_Core {
                                 'blocking' => false,
                                 'sslverify' => apply_filters('https_local_ssl_verify', true)
                             );
-                            wp_remote_post($cron_url, $args);
+                            $return = wp_remote_post($cron_url, $args);
+							$this->_log($return);
                         }					
                     }
                     
