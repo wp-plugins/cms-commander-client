@@ -331,6 +331,7 @@ $parts['path']=str_replace("%2F", "/", rawurlencode($parts['path']));
 		$options[CURLOPT_SSL_VERIFYPEER] = false;
 		$options[CURLOPT_SSL_VERIFYHOST] = false;
 		$options[CURLOPT_HTTPHEADER] = array('Expect:');
+		$options[CURLOPT_SSLVERSION] = 1;
 
 		// init
 		$this->curl = curl_init();
@@ -480,6 +481,7 @@ $url=str_replace("%2F", "/", rawurlencode($url));
 		$options[CURLOPT_SSL_VERIFYHOST] = false;
 		$options[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
 		$options[CURLOPT_HTTPHEADER] = $headers;
+		$options[CURLOPT_SSLVERSION] = 1;
 		// init
 		if($this->curl == null) $this->curl = curl_init();
 

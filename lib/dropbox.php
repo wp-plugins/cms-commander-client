@@ -135,7 +135,7 @@ class Dropbox {
 		curl_setopt($ch, CURLOPT_URL, self::API_URL . self::API_VERSION_URL . 'oauth/request_token' );
 		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-		curl_setopt($ch, CURLOPT_SSLVERSION,3);
+		curl_setopt($ch, CURLOPT_SSLVERSION, 1); // Require TLS
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		if (is_file(dirname(__FILE__).'/aws/lib/requestcore/cacert.pem'))
@@ -167,7 +167,7 @@ class Dropbox {
 		curl_setopt($ch, CURLOPT_URL, self::API_URL . self::API_VERSION_URL . 'oauth/access_token' );
 		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
 		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-		curl_setopt($ch, CURLOPT_SSLVERSION,3);
+		curl_setopt($ch, CURLOPT_SSLVERSION, 1); // Require TLS
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		if (is_file(dirname(__FILE__).'/aws/lib/requestcore/cacert.pem'))
@@ -218,7 +218,7 @@ class Dropbox {
 		curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 		curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_SSLVERSION,3);
+		curl_setopt($ch, CURLOPT_SSLVERSION, 1); // Require TLS
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		if (is_file(dirname(__FILE__).'/aws/lib/requestcore/cacert.pem'))
