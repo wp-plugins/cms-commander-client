@@ -207,7 +207,7 @@ class CMSC_Core extends CMSC_Helper
 		}
 		
 		add_action('admin_init', array(&$this,'admin_actions'));  		
-		add_action('init', array( &$this, 'cmsc_remote_action'), 9999);
+		add_action('init', array( &$this, 'cmsc_remote_action'), 3);
 		add_action('setup_theme', 'cmsc_run_backup_action', 1);
         add_action('plugins_loaded', 'cmsc_authenticate', 1);
 		add_action('setup_theme', 'cmsc_parse_request', 8);		
@@ -275,8 +275,8 @@ class CMSC_Core extends CMSC_Helper
      */
     function admin_notice()
     {
-        echo '<div class="error" style="text-align: center;"><p style="color: red; font-size: 14px; font-weight: bold;">Attention !</p><p>
-	  	Please add this site to your <a target="_blank" href="http://cmscommander.com/wp-admin">CMSCommander.com</a> account now or deactivate the CMS Commander plugin until you are ready to do so to avoid security issues.	  	
+        echo '<div class="error"><p style="font-size: 14px; font-weight: bold;">Ready For CMS Commander</p><p>
+	  	Please add this site to your <a target="_blank" href="http://cmscommander.com/wp-admin">CMS Commander account</a> now or deactivate our client plugin until you are ready to do so.	  	
 	  	</p></div>';
     }
     
