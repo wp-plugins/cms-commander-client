@@ -506,7 +506,7 @@ class CMSC_Stats extends CMSC_Core
         $stats['wp_multisite']    = $this->cmsc_multisite;
         $stats['network_install'] = $this->network_admin_install;
  		$stats['cms']			  = "wordpress";
-        
+
         if ($this->cmsc_multisite) {
             $details = get_blog_details($this->cmsc_multisite);
             if (isset($details->site_id)) {

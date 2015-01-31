@@ -127,16 +127,16 @@ class CMSC_Backup extends CMSC_Core {
 	    if($last == 'k')
 	        $memory_limit = ((int) $memory_limit)/1024;         
         
-   		if ( $memory_limit < 384 )  {    
-      		@ini_set('memory_limit', '384M');
+   		if ( $memory_limit < 512 )  {    
+      		@ini_set('memory_limit', '512M');
       		$changed['memory_limit'] = 1;
  		}
  		
-		if ( (int) @ini_get('max_execution_time') < 1200 ) {
-			@ini_set('max_execution_time', 1200);
-     		@set_time_limit(1200);
-     		$changed['execution_time'] = 1;
-     	}
+        if (((int) ini_get('max_execution_time') < 4000) && (ini_get('max_execution_time') !== '0')) {
+            @ini_set('max_execution_time', 4000);
+            @set_time_limit(4000);
+            $changed['execution_time'] = 1;
+        }		
      	
      	return $changed;
   	}
@@ -211,8 +211,7 @@ class CMSC_Backup extends CMSC_Core {
             }
             
             $this->update_tasks($before);
-            //update_option('cmsc_backup_tasks', $before);
-            
+
             if ($task_name == 'Backup Now') {
             	$result          = $this->backup($args, $task_name);
                 $backup_settings = $this->tasks;
@@ -454,7 +453,7 @@ class CMSC_Backup extends CMSC_Core {
         
         //Prepare .zip file name  
         $hash        = md5(time());
-        $label       = $type ? $type : 'manual';
+        $label       = !empty($type) ? $type : 'manual';
         $backup_file = $new_file_path . '/' . $this->site_name . '_' . $label . '_' . $what . '_' . date('Y-m-d') . '_' . $hash . '.zip';
         $backup_url  = WP_CONTENT_URL . '/cmscommander/backups/' . $this->site_name . '_' . $label . '_' . $what . '_' . date('Y-m-d') . '_' . $hash . '.zip';
         
@@ -470,6 +469,7 @@ class CMSC_Backup extends CMSC_Core {
             $db_backup = $this->backup_db_compress($task_name, $backup_file);
             if (is_array($db_backup) && array_key_exists('error', $db_backup)) {
             	$error_message = $db_backup['error'];
+				
             	return array(
             		'error' => $error_message
             	);
@@ -484,6 +484,7 @@ class CMSC_Backup extends CMSC_Core {
         	$content_backup = $this->backup_full($task_name, $backup_file, $exclude, $include);
             if (is_array($content_backup) && array_key_exists('error', $content_backup)) {
             	$error_message = $content_backup['error'];
+				
             	return array(
                     'error' => $error_message
                 );
@@ -549,16 +550,13 @@ class CMSC_Backup extends CMSC_Core {
             
             if ($task_name != 'Backup Now') {
                 $paths['status']        = $temp[count($temp) - 1]['status'];
-                $temp[count($temp) - 1] = $paths;
-                
+                $temp[count($temp) - 1] = $paths;                
             } else {
                 $temp[count($temp)] = $paths;
             }
 			
             $backup_settings[$task_name]['task_results'] = $temp;
-
-			$this->_log("-- Backup Task Finished-- "); /// CMSC LOG
-			
+			$this->_log("-- Backup Task Finished-- "); /// CMSC LOG			
             $this->update_tasks($backup_settings);
  
         }
@@ -589,10 +587,12 @@ class CMSC_Backup extends CMSC_Core {
             return array(
                 'error' => 'Failed to backup database.'
             );
-        } else if (is_array($db_result) && isset($db_result['error'])) {
-            return array(
-                'error' => $db_result['error']
-            );
+        } else {
+            if (is_array($db_result) && isset($db_result['error'])) {
+                return array(
+                    'error' => $db_result['error'],
+                );
+            }
         }
         
         $this->update_status($task_name, $this->statuses['db_dump'], true);
@@ -616,9 +616,10 @@ class CMSC_Backup extends CMSC_Core {
 					@unlink($db_result);
 					@rmdir(CMSC_DB_DIR);
 					 
-                   if($archive->error_code!=''){
-                        $archive->error_code = 'pclZip error ('.$archive->error_code . '): .';
+                    if ($archive->error_code != '') {
+                        $archive->error_code = 'pclZip error ('.$archive->error_code.'): .';
                     }
+					
 					return array(
 						'error' => 'Failed to zip database. ' . $archive->error_code . $archive->error_string
 					);
@@ -633,14 +634,26 @@ class CMSC_Backup extends CMSC_Core {
         $remove = array(
         	trim(basename(WP_CONTENT_DIR)) . "/cmscommander/backups",
         	trim(basename(WP_CONTENT_DIR)) . "/" . md5('cmsc-worker') . "/cmsc_backups",
-            trim(basename(WP_CONTENT_DIR)) . "/cache",
-			trim(basename(WP_CONTENT_DIR)) . "/w3tc",			
+            trim(basename(WP_CONTENT_DIR))."/managewp/backups",
+            trim(basename(WP_CONTENT_DIR))."/infinitewp/backups",
+            trim(basename(WP_CONTENT_DIR))."/".md5('mmb-worker')."/mwp_backups",
+            trim(basename(WP_CONTENT_DIR))."/backupwordpress",
+            trim(basename(WP_CONTENT_DIR))."/contents/cache",
+            trim(basename(WP_CONTENT_DIR))."/content/cache",
+            trim(basename(WP_CONTENT_DIR))."/cache",
+            trim(basename(WP_CONTENT_DIR))."/old-cache",
+            trim(basename(WP_CONTENT_DIR))."/uploads/backupbuddy_backups",
+            trim(basename(WP_CONTENT_DIR))."/w3tc",
+            "error_log",
+            "dbcache",
+            "pgcache",
+            "objectcache",
         );
         $exclude = array_merge($exclude, $remove);
         
         $this->update_status($task_name, $this->statuses['db_zip'], true);
         $this->update_status($task_name, $this->statuses['files_zip']);
-        
+        	
         $zip_result = $this->zip_backup($task_name, $backup_file, $exclude, $include);
         
         if (isset($zip_result['error'])) {
@@ -712,9 +725,6 @@ class CMSC_Backup extends CMSC_Core {
      */
     function zip_archive_backup_db($task_name, $db_result, $backup_file) {
     	$disable_comp = $this->tasks[$task_name]['task_args']['disable_comp'];
-    	if (!$disable_comp) {
-    		$this->_log("Compression is not supported by ZipArchive");
-    	}
     	$zip = new ZipArchive();
     	$result = $zip->open($backup_file, ZIPARCHIVE::OVERWRITE); // Tries to open $backup_file for acrhiving
     	if ($result === true) {
@@ -886,7 +896,8 @@ class CMSC_Backup extends CMSC_Core {
 		}
 		if ($result === true) {
 			foreach ($filelist as $file) {
-				$result = $result && $zip->addFile($file, sprintf("%s", str_replace(ABSPATH, '', $file))); // Tries to add a new file to $backup_file
+                $pathInZip = strpos($file, ABSPATH) === false ? basename($file) : str_replace(ABSPATH, '', $file);
+                $result    = $result && $zip->addFile($file, $pathInZip); // Tries to add a new file to $backup_file
 			}
 			$result = $result && $zip->close(); // Tries to close $backup_file
 		} else {
@@ -915,12 +926,26 @@ class CMSC_Backup extends CMSC_Core {
     		trim(basename(WP_CONTENT_DIR)),
     		"wp-admin"
     	);
+		
+        if (!file_exists(ABSPATH.'wp-config.php')
+            && file_exists(dirname(ABSPATH).'/wp-config.php')
+            && !file_exists(dirname(ABSPATH).'/wp-settings.php')
+        ) {
+            $include[] = '../wp-config.php';
+        }
+
+        $path = wp_upload_dir();
+        $path = $path['path'];
+        if (strpos($path, WP_CONTENT_DIR) === false && strpos($path, ABSPATH) === 0) {
+            $add[] = ltrim(substr($path, strlen(ABSPATH)), ' /');
+        }		
     	
     	$include_data = array();
     	if (!empty($include)) {
     		foreach ($include as $data) {
-    			if ($data && file_exists(ABSPATH . $data))
+    			if ($data && file_exists(ABSPATH . $data)) {
     				$include_data[] = ABSPATH . $data . '/';
+				}	
     		}
     	}
     	$include_data = array_merge($add, $include_data);
@@ -946,10 +971,11 @@ class CMSC_Backup extends CMSC_Core {
     	if (!empty($exclude)) {
     		foreach ($exclude as $data) {
     			if (file_exists(ABSPATH . $data)) {
-	    			if (is_dir(ABSPATH . $data))
-	    				$exclude_data[] = $data . '/';
-	    			else
-	    				$exclude_data[] = $data;
+                    if (is_dir(ABSPATH.$data)) {
+                        $exclude_data[] = $data.'/';
+                    } else {
+                        $exclude_data[] = $data;
+                    }
     			}
     		}
     	}
@@ -968,6 +994,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	array				array with all files in site root dir
      */
     function get_backup_files($exclude, $include) {
+	
     	$add = array(
     		trim(WPINC),
     		trim(basename(WP_CONTENT_DIR)),
@@ -975,19 +1002,40 @@ class CMSC_Backup extends CMSC_Core {
     	);
     	
     	$include = array_merge($add, $include);
+        foreach ($include as &$value) {
+            $value = rtrim($value, '/');
+        }
 		
 	    $filelist = array();
 	    if ($handle = opendir(ABSPATH)) {
 	    	while (false !== ($file = readdir($handle))) {
-				if (@is_dir($file) && file_exists(ABSPATH . $file) && !(in_array($file, $include))) {
-	    			$exclude[] = $file;
-	    		}
+                if ($file !== '..' && is_dir($file) && file_exists(ABSPATH.$file) && !(in_array($file, $include))) {
+                    $exclude[] = $file;
+                }
 	    	}
 	    	closedir($handle);
 	    }
-	    
+	    $exclude[] = 'error_log';
+		
     	$filelist = get_all_files_from_dir(ABSPATH, $exclude);
     	
+        if (!file_exists(ABSPATH.'wp-config.php')
+            && file_exists(dirname(ABSPATH).'/wp-config.php')
+            && !file_exists(dirname(ABSPATH).'/wp-settings.php')
+        ) {
+            $filelist[] = dirname(ABSPATH).'/wp-config.php';
+        }
+
+        $path = wp_upload_dir();
+        $path = $path['path'];
+        if (strpos($path, WP_CONTENT_DIR) === false && strpos($path, ABSPATH) === 0) {
+            $mediaDir = ABSPATH.ltrim(substr($path, strlen(ABSPATH)), ' /');
+            if (is_dir($mediaDir)) {
+                $allMediaFiles = get_all_files_from_dir($mediaDir);
+                $filelist      = array_merge($filelist, $allMediaFiles);
+            }
+        }		
+		
     	return $filelist;
     }
     
@@ -1000,6 +1048,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|array						true if backup is successful, or an array with error message if is failed
      */
     function backup_db_compress($task_name, $backup_file) {
+	
     	$this->update_status($task_name, $this->statuses['db_dump']);
     	$db_result = $this->backup_db();
     	
@@ -1007,11 +1056,13 @@ class CMSC_Backup extends CMSC_Core {
     		return array(
     			'error' => 'Failed to backup database.'
     		);
-    	} else if (is_array($db_result) && isset($db_result['error'])) {
-    		return array(
-    			'error' => $db_result['error']
-    		);
-    	}
+        } else {
+            if (is_array($db_result) && isset($db_result['error'])) {
+                return array(
+                    'error' => $db_result['error'],
+                );
+            }
+        }
     	
     	$this->update_status($task_name, $this->statuses['db_dump'], true);
     	$this->update_status($task_name, $this->statuses['db_zip']);
@@ -1056,12 +1107,14 @@ class CMSC_Backup extends CMSC_Core {
      * @return	string|array	path to dump file if successful, or an array with error message if is failed
      */
     function backup_db() {
+	
         $db_folder = CMSC_DB_DIR . '/';
         if (!file_exists($db_folder)) {
-            if (!mkdir($db_folder, 0755, true))
+            if (!mkdir($db_folder, 0755, true)) {
                 return array(
-                    'error' => 'Error creating database backup folder (' . $db_folder . '). Make sure you have correct write permissions.'
+                    'error' => 'Error creating database backup folder ('.$db_folder.'). Make sure you have correct write permissions.',
                 );
+            }
         }
         
         $file   = $db_folder . DB_NAME . '.sql';
@@ -1135,6 +1188,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	string|array	path to dump file if successful, or an array with error message if is failed
      */
 	function backup_db_php($file) {
+	
         global $wpdb;
         $tables = $wpdb->get_results('SHOW TABLES', ARRAY_N);
         foreach ($tables as $table) {
@@ -1147,10 +1201,13 @@ class CMSC_Backup extends CMSC_Core {
             file_put_contents($file, $dump_data, FILE_APPEND);
             
             $count = $wpdb->get_var("SELECT count(*) FROM $table[0]");
-            if ($count > 100)
+            if ($count > 100) {
                 $count = ceil($count / 100);
-            else if ($count > 0)            
-                $count = 1;                
+            } else {
+                if ($count > 0) {
+                    $count = 1;
+                }
+            }              
             
             for ($i = 0; $i < $count; $i++) {
                 $low_limit = $i * 100;
@@ -1201,6 +1258,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|array	true if successful, or an array with error message if is failed
      */
     function restore($args) {
+	
         global $wpdb;
         if (empty($args)) {
             return false;
@@ -1867,6 +1925,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	bool|array		true is successful, array with error message if not
      */
     function email_backup($args) {
+	
         $email = $args['email'];
         
         if (!is_email($email)) {
@@ -1876,7 +1935,7 @@ class CMSC_Backup extends CMSC_Core {
         }
         $backup_file = $args['file_path'];
         $task_name   = isset($args['task_name']) ? $args['task_name'] : '';
-        if (file_exists($backup_file) && $email) {
+        if (file_exists($backup_file)) {
             $attachments = array(
                 $backup_file
             );
@@ -1885,7 +1944,10 @@ class CMSC_Backup extends CMSC_Core {
             ob_start();
             $result = wp_mail($email, $subject, $subject, $headers, $attachments);
             ob_end_clean();
-            
+        } else {
+            return array(
+                'error' => 'The backup file ('.$backup_file.') does not exist.',
+            );
         }
         
         if (!$result) {

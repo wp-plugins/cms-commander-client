@@ -274,7 +274,13 @@ class CMSC_Functions extends CMSC_Core
 		
 		if(function_exists("cmsc_handle_overhead")) {
 			$data['counts']['overhead'] = cmsc_handle_overhead(false);
-		}		
+		}	
+
+		if ( is_plugin_active( 'WPRobot3/wprobot.php' ) ) {
+			$data['wprobot'] = "yes";
+		} else {
+			$data['wprobot'] = "no";
+		}			
 		
 		return $data;		
 	}
