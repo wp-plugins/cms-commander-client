@@ -2,7 +2,7 @@
 Contributors: thoefter
 Tags: cmscommander, cms, admin, analytics, amazon, api, google, drive, authentication, automatic, backup, dashboard, dropbox, integration, manage, s3, stats, affiliate, flickr, images, affiliate, ads, youtube, videos, yahoo
 Tested up to: 4.1
-Stable tag: 2.12
+Stable tag: 2.13
 
 CMS Commander makes it possible to manage all your WordPress weblogs from a single dashboard.
 
@@ -32,7 +32,14 @@ Credits: [Vladimir Prelovac](http://prelovac.com/vladimir) for his worker plugin
 
 == Changelog ==  
 
+= 2.13 =
+
+- Added: New classes for Dropbox, S3 and Google Drive integration
+- Improved: Performance of remote backup uploads for large sites
+- Fixed: Bug with Google Analytics verification
+
 = 2.12 =
+
 - Added: Support for new [deploy WordPress](http://cmscommander.com/cms-commander-features/deploy-wordpress/) feature
 - Fixed: Improved performance for backup tasks on larger sites
 

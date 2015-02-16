@@ -70,13 +70,13 @@ $unzip_errors = array(
  *
  */
 class CMSC_Backup extends CMSC_Core {
-    var $site_name;
-    var $statuses;
-    var $tasks;
-    var $s3;
-    var $ftp;
-    var $dropbox;
-    var $google_drive;
+    public $site_name;
+    public $statuses;
+    public $tasks;
+    public $s3;
+    public $ftp;
+    public $dropbox;
+    public $google_drive;
     
     /**
      * Initializes site_name, statuses, and tasks attributes.
@@ -363,7 +363,7 @@ class CMSC_Backup extends CMSC_Core {
      * @param string|bool[optional]	$google_drive_token 	false if backup destination is not Google Drive, json of Google Drive token if it is remote destination (default: false)
      * @return mixed										array with backup statistics if successful, array with error message if not
      */
-    function task_now($task_name, $google_drive_token = false) {
+    function task_now($task_name, $google_drive_token = false, $resultUuid = false) {
 		if ($google_drive_token) {
 			$this->tasks[$task_name]['task_args']['account_info']['cmsc_google_drive']['google_drive_token'] = $google_drive_token;
 		}
@@ -382,7 +382,7 @@ class CMSC_Backup extends CMSC_Core {
 		));
 		
 		//Run backup              
-		$result = $this->backup($setting['task_args'], $task_name);
+		$result = $this->backup($setting['task_args'], $task_name, $resultUuid);
 
 		//Check for error
 		if (is_array($result) && array_key_exists('error', $result)) {
@@ -410,7 +410,7 @@ class CMSC_Backup extends CMSC_Core {
      * @param	bool|string[optional]	$task_name		the name of backup task, which backup is done (default: false)
      * @return	bool|array								false if $args are missing, array with error if error has occured, ture if is successful
      */
-    function backup($args, $task_name = false) {
+    function backup($args, $task_name = false, $resultUuid = false) {
         if (!$args || empty($args))
             return false;
         
@@ -508,7 +508,10 @@ class CMSC_Backup extends CMSC_Core {
             }
 			
             $paths['duration'] = $duration . 's';
-            
+            if ($resultUuid) {
+                $paths['resultUuid'] = $resultUuid;
+            }   
+			
             if ($task_name != 'Backup Now') {
                 $paths['server'] = array(
                     'file_path' => $backup_file,
@@ -541,7 +544,10 @@ class CMSC_Backup extends CMSC_Core {
             }
             
             if (isset($backup_settings[$task_name]['task_args']['account_info']['cmsc_google_drive'])) {
-            	$paths['google_drive'] = basename($backup_url);
+                $paths['google_drive'] = array(
+                    'file'    => basename($backup_url),
+                    'file_id' => ''
+                );
             }
             
             $temp          = $backup_settings[$task_name]['task_results'];
@@ -2279,29 +2285,39 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	bool|array		true is successful, array with error message if not
      */
     function dropbox_backup($args) {
-        extract($args);
-        
-        global $cmsc_plugin_dir;
-        require_once $cmsc_plugin_dir . '/lib/dropbox.php';
-        
-        $dropbox = new Dropbox($consumer_key, $consumer_secret);
-        $dropbox->setOAuthTokens($oauth_token, $oauth_token_secret);
-        
-        if ($dropbox_site_folder == true)
-        	$dropbox_destination .= '/' . $this->site_name . '/' . basename($backup_file);
-        else
-        	$dropbox_destination .= '/' . basename($backup_file);
-        
         try {
-        	$dropbox->upload($backup_file, $dropbox_destination, true);
+            $dropbox = cmsc_dropbox_oauth_factory($args['consumer_key'], $args['consumer_secret'], $args['oauth_token'], $args['oauth_token_secret']);
         } catch (Exception $e) {
-        	$this->_log($e->getMessage());
-        	return array(
-        		'error' => $e->getMessage(),
-        		'partial' => 1
-        	);
+
+            return array(
+                'error'   => $e->getMessage(),
+                'partial' => 1,
+            );
         }
-        
+
+        $args['dropbox_destination'] = '/'.ltrim($args['dropbox_destination'], '/');
+
+        if ($args['dropbox_site_folder'] == true) {
+            $args['dropbox_destination'] .= '/'.$this->site_name.'/'.basename($args['backup_file']);
+        } else {
+            $args['dropbox_destination'] .= '/'.basename($args['backup_file']);
+        }
+
+        $fileSize = filesize($args['backup_file']);
+        $start    = microtime(true);
+
+        try {
+            $callback = null;
+
+            $dropbox->uploadFile($args['dropbox_destination'], Dropbox_WriteMode::force(), fopen($args['backup_file'], 'r'), $fileSize, $callback);
+        } catch (Exception $e) {
+
+            return array(
+                'error'   => $e->getMessage(),
+                'partial' => 1,
+            );
+        }
+
         return true;
     }
     
@@ -2318,30 +2334,26 @@ class CMSC_Backup extends CMSC_Core {
      * [backup_file] -> absolute path of backup file on local server
      * @return 	void
      */
-    function remove_dropbox_backup($args) {
-    	extract($args);
-        
-        global $cmsc_plugin_dir;
-        require_once $cmsc_plugin_dir . '/lib/dropbox.php';
-        
-        $dropbox = new Dropbox($consumer_key, $consumer_secret);
-        $dropbox->setOAuthTokens($oauth_token, $oauth_token_secret);
-        
-        if ($dropbox_site_folder == true)
-        	$dropbox_destination .= '/' . $this->site_name;
-    	
-    	try {
-    		$dropbox->fileopsDelete($dropbox_destination . '/' . $backup_file);
-    	} catch (Exception $e) {
-    		$this->_log($e->getMessage());
-    		/*return array(
-    			'error' => $e->getMessage(),
-    			'partial' => 1
-    		);*/
-    	}
-    	
-    	//return true;
-	}
+    public function remove_dropbox_backup($args) {
+        try {
+            $dropbox = cmsc_dropbox_oauth_factory($args['consumer_key'], $args['consumer_secret'], $args['oauth_token'], $args['oauth_token_secret']);
+        } catch (Exception $e) {
+
+            return;
+        }
+
+        $args['dropbox_destination'] = '/'.ltrim($args['dropbox_destination'], '/');
+
+        if ($args['dropbox_site_folder'] == true) {
+            $args['dropbox_destination'] .= '/'.$this->site_name;
+        }
+
+        try {
+            $dropbox->delete($args['dropbox_destination'].'/'.$args['backup_file']);
+        } catch (Exception $e) {
+
+        }
+    }
 	
 	/**
 	 * Downloads backup file from Dropbox to root folder on local server.
@@ -2357,37 +2369,49 @@ class CMSC_Backup extends CMSC_Core {
 	 * @return 	bool|array		absolute path to downloaded file is successful, array with error message if not
 	 */
 	function get_dropbox_backup($args) {
-  		extract($args);
-  		
-  		global $cmsc_plugin_dir;
-  		require_once $cmsc_plugin_dir . '/lib/dropbox.php';
-  		
-  		$dropbox = new Dropbox($consumer_key, $consumer_secret);
-        $dropbox->setOAuthTokens($oauth_token, $oauth_token_secret);
-        
-        if ($dropbox_site_folder == true)
-        	$dropbox_destination .= '/' . $this->site_name;
-        
-  		$temp = ABSPATH . 'cmsc_temp_backup.zip';
-  		
-  		try {
-  			$file = $dropbox->download($dropbox_destination.'/'.$backup_file);
-  			$handle = @fopen($temp, 'w');
-			$result = fwrite($handle,$file);
-			fclose($handle);
-			
-			if($result)
-				return $temp;
-			else
-				return false;
-  		} catch (Exception $e) {
-  			$this->_log($e->getMessage());
-  			return array(
-  				'error' => $e->getMessage(),
-  				'partial' => 1
-  			);
-  		}
-	}
+        try {
+            $dropbox = cmsc_dropbox_oauth_factory($args['consumer_key'], $args['consumer_secret'], $args['oauth_token'], $args['oauth_token_secret']);
+        } catch (Exception $e) {
+
+            return array(
+                'error'   => $e->getMessage(),
+                'partial' => 1,
+            );
+        }
+
+        $args['dropbox_destination'] = '/'.ltrim($args['dropbox_destination'], '/');
+
+        if ($args['dropbox_site_folder'] == true) {
+            $args['dropbox_destination'] .= '/'.$this->site_name;
+        }
+
+        $file = $args['dropbox_destination'].'/'.$args['backup_file'];
+        $temp = ABSPATH.'cmsc_temp_backup.zip';
+
+        $start = microtime(true);
+        try {
+            $fh = fopen($temp, 'wb');
+
+            if (!$fh) {
+                throw new RuntimeException(sprintf('Temporary file (%s) is not writable', $temp));
+            }
+
+            $dropbox->getFile($file, $fh);
+            $result = fclose($fh);
+
+            if (!$result) {
+                throw new Exception('Unable to close file handle.');
+            }
+        } catch (Exception $e) {
+
+            return array(
+                'error'   => $e->getMessage(),
+                'partial' => 1,
+            );
+        }
+
+        return $temp;
+    }
 	
 	/**
 	 * Uploads backup file from server to Amazon S3.
@@ -2403,43 +2427,26 @@ class CMSC_Backup extends CMSC_Core {
 	 * @return 	bool|array		true is successful, array with error message if not
 	 */
     function amazons3_backup($args) {
-        if ($this->cmsc_function_exists('curl_init')) {
-            require_once('lib/s3.php');
-            extract($args);
-            
-            if ($as3_site_folder == true)
-                $as3_directory .= '/' . $this->site_name;
-            
-            $endpoint = isset($as3_bucket_region) ? $as3_bucket_region : 's3.amazonaws.com';
-            try{
-	            $s3 = new cmscS3(trim($as3_access_key), trim(str_replace(' ', '+', $as3_secure_key)), false, $endpoint);
-	            if ($s3->putObjectFile($backup_file, $as3_bucket, $as3_directory . '/' . basename($backup_file), cmscS3::ACL_PRIVATE)) {
-	                return true;
-	            } else {
-	            	return array(
-	                    'error' => 'Failed to upload to Amazon S3. Please check your details and set upload/delete permissions on your bucket.',
-	                    'partial' => 1
-	                );
-	            }
-	        } catch (Exception $e) {
-	        	$err = $e->getMessage();
-	        	if($err){
-	         		return array(
-	                	'error' => 'Failed to upload to AmazonS3 ('.$err.').'
-	            	);
-	        	} else {
-	         		return array(
-	                	'error' => 'Failed to upload to Amazon S3.'
-	            	);
-	        	}
-	        }
-        
-        } else {
+        if ($args['as3_site_folder'] == true) {
+            $args['as3_directory'] .= '/'.$this->site_name;
+        }
+        $endpoint        = isset($args['as3_bucket_region']) ? $args['as3_bucket_region'] : 's3.amazonaws.com';
+        $fileSize        = filesize($args['backup_file']);
+        $start           = microtime(true);
+
+        try {
+            $s3 = new S3_Client(trim($args['as3_access_key']), trim(str_replace(' ', '+', $args['as3_secure_key'])), false, $endpoint);
+            $s3->setExceptions(true);
+
+            $s3->putObjectFile($args['backup_file'], $args['as3_bucket'], $args['as3_directory'].'/'.basename($args['backup_file']), S3_Client::ACL_PRIVATE);
+        } catch (Exception $e) {
+
             return array(
-                'error' => 'You cannot use Amazon S3 on your server. Please enable curl extension first.',
-                'partial' => 1
+                'error' => 'Failed to upload to Amazon S3 ('.$e->getMessage().').',
             );
         }
+
+        return true;
     }
     
     /**
@@ -2456,19 +2463,18 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	void
      */
     function remove_amazons3_backup($args) {
-    	if ($this->cmsc_function_exists('curl_init')) {
-	        require_once('lib/s3.php');
-	        extract($args);
-	        if ($as3_site_folder == true)
-	            $as3_directory .= '/' . $this->site_name;
-	        $endpoint = isset($as3_bucket_region) ? $as3_bucket_region : 's3.amazonaws.com';
-	        try {
-		        $s3       = new cmscS3(trim($as3_access_key), trim(str_replace(' ', '+', $as3_secure_key)), false, $endpoint);
-		        $s3->deleteObject($as3_bucket, $as3_directory . '/' . $backup_file);
-	      	} catch (Exception $e){
-	      		
-	      	}
-    	}
+        if ($args['as3_site_folder'] == true) {
+            $args['as3_directory'] .= '/'.$this->site_name;
+        }
+        $endpoint = isset($args['as3_bucket_region']) ? $args['as3_bucket_region'] : 's3.amazonaws.com';
+
+        try {
+            $s3 = new S3_Client(trim($args['as3_access_key']), trim(str_replace(' ', '+', $args['as3_secure_key'])), false, $endpoint);
+            $s3->setExceptions(true);
+            $s3->deleteObject($args['as3_bucket'], $args['as3_directory'].'/'.$args['backup_file']);
+        } catch (Exception $e) {
+            // @todo what now?
+        }
     }
     
     /**
@@ -2485,21 +2491,26 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|array		absolute path to downloaded file is successful, array with error message if not
      */
     function get_amazons3_backup($args) {
-        require_once('lib/s3.php');
-        extract($args);
-        $endpoint = isset($as3_bucket_region) ? $as3_bucket_region : 's3.amazonaws.com';
-        $temp = '';
+        $endpoint = isset($args['as3_bucket_region']) ? $args['as3_bucket_region'] : 's3.amazonaws.com';
+
+        if ($args['as3_site_folder'] == true) {
+            $args['as3_directory'] .= '/'.$this->site_name;
+        }
+        $start = microtime(true);
         try {
-	        $s3       = new cmscS3($as3_access_key, str_replace(' ', '+', $as3_secure_key), false, $endpoint);
-	        if ($as3_site_folder == true)
-	            $as3_directory .= '/' . $this->site_name;
-	        
-	        $temp = ABSPATH . 'cmsc_temp_backup.zip';
-	        $s3->getObject($as3_bucket, $as3_directory . '/' . $backup_file, $temp);
-    	} catch (Exception $e) {
-    		return $temp;
-    	}
-    	return $temp;
+            $s3 = new S3_Client($args['as3_access_key'], str_replace(' ', '+', $args['as3_secure_key']), false, $endpoint);
+            $s3->setExceptions(true);
+            $temp = ABSPATH.'cmsc_temp_backup.zip';
+
+            $s3->getObject($args['as3_bucket'], $args['as3_directory'].'/'.$args['backup_file'], $temp);
+        } catch (Exception $e) {
+
+            return array(
+                'error' => 'Error while downloading the backup file from Amazon S3: '.$e->getMessage(),
+            );
+        }
+
+        return $temp;
     }
     
     /**
@@ -2513,130 +2524,147 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	bool|array		true is successful, array with error message if not
      */
     function google_drive_backup($args) {
-    	extract($args);
-    	
-    	global $cmsc_plugin_dir;
-    	require_once("$cmsc_plugin_dir/lib/google-api-client/Google_Client.php");
-    	require_once("$cmsc_plugin_dir/lib/google-api-client/contrib/Google_DriveService.php");
-
-		if(empty($google_drive_client_id) || empty($google_drive_client_secret)) { return array('error' => "Missing parameters.");}
+        cmsc_register_autoload_google();
+		// {"access_token":"ya29.dQDGsJtLyibsWCEAAAD7EKZKPhDnVZj04aJ732mDZUTKt3NliTTykd3pBhAVktM4LuFKCc_W6mFB0Yhu5OY","token_type":"Bearer","expires_in":3600,"refresh_token":"1\/FXLvop0keUEDDHJMhltZ5KvY7E0AzlQe3kh92Jk5U68","created":1409766937}
 		
-    	$gdrive_client = new Google_Client();
-	    $gdrive_client->setUseObjects(true);
-	    $gdrive_client->setAccessToken($google_drive_token);
-		$gdrive_client->setClientId($google_drive_client_id);
-		$gdrive_client->setClientSecret($google_drive_client_secret);
+        $googleClient = new Google_ApiClient();
+        $googleClient->setAccessToken($args['google_drive_token']);
+		$googleClient->setClientId($args['google_drive_client_id']);
+		$googleClient->setClientSecret($args['google_drive_client_secret']);		
+		
+        $googleDrive = new Google_Service_Drive($googleClient);
 
-    	$gdrive_service = new Google_DriveService($gdrive_client);
-    	
-    	try {
-	    	$about = $gdrive_service->about->get();
-	    	$root_folder_id = $about->getRootFolderId();
-    	} catch (Exception $e) {
-    		return array(
-    			'error' => $e->getMessage(),
-    		);
-    	}
-    	
-    	try {
-	    	$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$google_drive_directory' and '$root_folder_id' in parents and trashed = false"));
-	    	$files = $list_files->getItems();
-    	} catch (Exception $e) {
-    		return array(
-    			'error' => $e->getMessage(),
-    		);
-    	}
-    	if (isset($files[0])) {
-    		$cmscommander_folder = $files[0];
-    	}
-    	
-    	if (!isset($cmscommander_folder)) {
-    		try {
-	    		$_cmscommander_folder = new Google_DriveFile();
-	    		$_cmscommander_folder->setTitle($google_drive_directory);
-	    		$_cmscommander_folder->setMimeType('application/vnd.google-apps.folder');
-	    		
-	    		if ($root_folder_id != null) {
-	    			$parent = new Google_ParentReference();
-	    			$parent->setId($root_folder_id);
-	    			$_cmscommander_folder->setParents(array($parent));
-	    		}
-    			
-    			$cmscommander_folder = $gdrive_service->files->insert($_cmscommander_folder, array());
-    		} catch (Exception $e) {
-    			return array(
-	    			'error' => $e->getMessage(),
-	    		);
-    		}
-    	}
-    	
-    	if ($google_drive_site_folder) {
-    		try {
-	    		$subfolder_title = $this->site_name;
-	    		$cmscommander_folder_id = $cmscommander_folder->getId();
-	    		$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$subfolder_title' and '$cmscommander_folder_id' in parents and trashed = false"));
-	    		$files = $list_files->getItems();
-    		} catch (Exception $e) {
-    			return array(
-    				'error' => $e->getMessage(),
-    			);
-    		}
-    		if (isset($files[0])) {
-    			$backup_folder = $files[0];
-    		} else {
-    			try {
-	    			$_backup_folder = new Google_DriveFile();
-	    			$_backup_folder->setTitle($subfolder_title);
-	    			$_backup_folder->setMimeType('application/vnd.google-apps.folder');
-	    			
-	    			if (isset($cmscommander_folder)) {
-	    				$_backup_folder->setParents(array($cmscommander_folder));
-	    			}
-    				
-    				$backup_folder = $gdrive_service->files->insert($_backup_folder, array());
-    			} catch (Exception $e) {
-    				return array(
-		    			'error' => $e->getMessage(),
-		    		);
-    			}
-    		}
-    	} else {
-    		$backup_folder = $cmscommander_folder;
-    	}
-    	
-    	$file_path = explode('/', $backup_file);
-    	$new_file = new Google_DriveFile();
-    	$new_file->setTitle(end($file_path));
-    	$new_file->setDescription('Backup file of site: ' . $this->site_name . '.');
-    	 
-    	if ($backup_folder != null) {
-    		$new_file->setParents(array($backup_folder));
-    	}
-    	
-    	$tries = 1;
-    	
-    	while($tries <= 2) {
-	    	try {
-	    		$data = file_get_contents($backup_file);
-	    		
-	    		$createdFile = $gdrive_service->files->insert($new_file, array(
-	    			'data' => $data,
-	    		));
-	    		
-	    		break;
-	    	} catch (Exception $e) {
-	    		if ($e->getCode() >= 500 && $e->getCode() <= 504 && $cmsc_gdrive_upload_tries <= 2) {
-	    			sleep(2);
-	    			$tries++;
-	    		} else {
-	    			return array(
-	    				'error' => $e->getMessage(),
-	    			);
-	    		}
-	    	}
-    	}
-    	
-    	return true;
+        try {
+            $about        = $googleDrive->about->get();
+            $rootFolderId = $about->getRootFolderId();
+        } catch (Exception $e) {
+
+            return array(
+                'error' => 'Error while fetching Google Drive root folder ID: '.$e->getMessage(),
+            );
+        }
+
+        try {
+            $rootFiles = $googleDrive->files->listFiles(array("q" => "title='".addslashes($args['google_drive_directory'])."' and '$rootFolderId' in parents and trashed = false"));
+        } catch (Exception $e) {
+
+            return array(
+                'error' => 'Error while loading Google Drive backup directory: '.$e->getMessage(),
+            );
+        }
+
+        if ($rootFiles->offsetExists(0)) {
+            $backupFolder = $rootFiles->offsetGet(0);
+        } else {
+            try {
+                $newBackupFolder = new Google_Service_Drive_DriveFile();
+                $newBackupFolder->setTitle($args['google_drive_directory']);
+                $newBackupFolder->setMimeType('application/vnd.google-apps.folder');
+
+                if ($rootFolderId) {
+                    $parent = new Google_Service_Drive_ParentReference();
+                    $parent->setId($rootFolderId);
+                    $newBackupFolder->setParents(array($parent));
+                }
+
+                $backupFolder = $googleDrive->files->insert($newBackupFolder);
+            } catch (Exception $e) {
+
+                return array(
+                    'error' => 'Error while creating Google Drive backup directory: '.$e->getMessage(),
+                );
+            }
+        }
+
+        if ($args['google_drive_site_folder']) {
+            try {
+                $siteFolderTitle = $this->site_name;
+                $backupFolderId  = $backupFolder->getId();
+                $driveFiles      = $googleDrive->files->listFiles(array("q" => "title='".addslashes($siteFolderTitle)."' and '$backupFolderId' in parents and trashed = false"));
+            } catch (Exception $e) {
+
+                return array(
+                    'error' => 'Error while fetching Google Drive site directory: '.$e->getMessage(),
+                );
+            }
+            if ($driveFiles->offsetExists(0)) {
+                $siteFolder = $driveFiles->offsetGet(0);
+            } else {
+                try {
+                    $_backup_folder = new Google_Service_Drive_DriveFile();
+                    $_backup_folder->setTitle($siteFolderTitle);
+                    $_backup_folder->setMimeType('application/vnd.google-apps.folder');
+
+                    if (isset($backupFolder)) {
+                        $_backup_folder->setParents(array($backupFolder));
+                    }
+
+                    $siteFolder = $googleDrive->files->insert($_backup_folder, array());
+                } catch (Exception $e) {
+
+                    return array(
+                        'error' => 'Error while creating Google Drive site directory: '.$e->getMessage(),
+                    );
+                }
+            }
+        } else {
+            $siteFolder = $backupFolder;
+        }
+
+        $file_path  = explode('/', $args['backup_file']);
+        $backupFile = new Google_Service_Drive_DriveFile();
+        $backupFile->setTitle(end($file_path));
+        $backupFile->setDescription('Backup file of site: '.$this->site_name.'.');
+
+        if ($siteFolder != null) {
+            $backupFile->setParents(array($siteFolder));
+        }
+        $googleClient->setDefer(true);
+        // Deferred client returns request object.
+        /** @var Google_Http_Request $request */
+        $request   = $googleDrive->files->insert($backupFile);
+        $chunkSize = 1024 * 1024 * 4;
+
+        $media    = new Google_Http_MediaFileUpload($googleClient, $request, 'application/zip', null, true, $chunkSize);
+        $fileSize = filesize($args['backup_file']);
+        $media->setFileSize($fileSize);
+
+
+        // Upload the various chunks. $status will be false until the process is
+        // complete.
+        $status           = false;
+        $handle           = fopen($args['backup_file'], 'rb');
+        $started          = microtime(true);
+        $lastNotification = $started;
+        $lastProgress     = 0;
+        $threshold        = 1;
+        $uploaded         = 0;
+        $started          = microtime(true);
+        while (!$status && !feof($handle)) {
+            $chunk        = fread($handle, $chunkSize);
+            $newChunkSize = strlen($chunk);
+
+            if (($elapsed = microtime(true) - $lastNotification) > $threshold) {
+                $lastNotification = microtime(true);
+
+                $lastProgress = $uploaded;
+                echo ".";
+                flush();
+            }
+            $uploaded += $newChunkSize;
+            $status = $media->nextChunk($chunk);
+        }
+        fclose($handle);
+
+        if (!$status instanceof Google_Service_Drive_DriveFile) {
+
+            return array(
+                'error' => 'Upload to Google Drive was not successful.',
+            );
+        }
+        $this->tasks[$args['task_name']]['task_results'][$args['task_result_key']]['google_drive']['file_id'] = $status->getId();
+					
+        return true;
     }
     
     /**
@@ -2650,108 +2678,88 @@ class CMSC_Backup extends CMSC_Core {
      * @return	void
      */
     function remove_google_drive_backup($args) {
-    	extract($args);
-    	
-    	global $cmsc_plugin_dir;
-    	require_once("$cmsc_plugin_dir/lib/google-api-client/Google_Client.php");
-    	require_once("$cmsc_plugin_dir/lib/google-api-client/contrib/Google_DriveService.php");
-    	
-    	try {
-	    	$gdrive_client = new Google_Client();
-	    	$gdrive_client->setUseObjects(true);
-	    	$gdrive_client->setAccessToken($google_drive_token);
-			$gdrive_client->setClientId($google_drive_client_id);
-			$gdrive_client->setClientSecret($google_drive_client_secret);			
-    	} catch (Exception $e) {
-			$this->_log($e->getMessage());
-    		/*eturn array(
-    			'error' => $e->getMessage(),
-    		);*/
-    	}
-    	
-    	$gdrive_service = new Google_DriveService($gdrive_client);
-    	
-    	try {
-	    	$about = $gdrive_service->about->get();
-	    	$root_folder_id = $about->getRootFolderId();
-    	} catch (Exception $e) {
-    		$this->_log($e->getMessage());
-    		/*return array(
-    			'error' => $e->getMessage(),
-    		);*/
-    	}
-    	
-    	try {
-	    	$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$google_drive_directory' and '$root_folder_id' in parents and trashed = false"));
-	    	$files = $list_files->getItems();
-    	} catch (Exception $e) {
-    		$this->_log($e->getMessage());
-    		/*return array(
-    			'error' => $e->getMessage(),
-    		);*/
-    	}
-    	if (isset($files[0])) {
-    		$cmscommander_folder = $files[0];
-    	} else {
-    		$this->_log("This file does not exist.");
-    		/*return array(
-    			'error' => "This file does not exist.",
-    		);*/
-    	}
-    	
-    	if ($google_drive_site_folder) {
-    		try {
-	    		$subfolder_title = $this->site_name;
-	    		$cmscommander_folder_id = $cmscommander_folder->getId();
-	    		$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$subfolder_title' and '$cmscommander_folder_id' in parents and trashed = false"));
-	    		$files = $list_files->getItems();
-    		} catch (Exception $e) {
-    			$this->_log($e->getMessage());
-    			/*return array(
-    				'error' => $e->getMessage(),
-    			);*/
-    		}
-    		if (isset($files[0])) {
-    			$backup_folder = $files[0];
-    		}
-    	} else {
-    		$backup_folder = $cmscommander_folder;
-    	}
-    	
-    	if (isset($backup_folder)) {
-    		try {
-	    		$backup_folder_id = $backup_folder->getId();
-	    		$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$backup_file' and '$backup_folder_id' in parents and trashed = false"));
-	    		$files = $list_files->getItems();;
-    		} catch (Exception $e) {
-    			$this->_log($e->getMessage());
-    			/*return array(
-		    		'error' => $e->getMessage(),
-		    	);*/
-    		}
-    		if (isset($files[0])) {
-    			try {
-    				$gdrive_service->files->delete($files[0]->getId());
-    			} catch (Exception $e) {
-    				$this->_log($e->getMessage());
-    				/*return array(
-		    			'error' => $e->getMessage(),
-		    		);*/
-    			}
-    		} else {
-    			$this->_log("This file does not exist.");
-    			/*return array(
-	    			'error' => "This file does not exist.",
-	    		);*/
-    		}
-    	} else {
-    		$this->_log("This file does not exist.");
-    		/*return array(
-    			'error' => "This file does not exist.",
-    		);*/
-    	}
-    	
-    	//return true;
+        cmsc_register_autoload_google();
+
+        try {
+            $googleClient = new Google_ApiClient();
+            $googleClient->setAccessToken($args['google_drive_token']);
+			$googleClient->setClientId($args['google_drive_client_id']);
+			$googleClient->setClientSecret($args['google_drive_client_secret']);					
+        } catch (Exception $e) {
+
+            return;
+        }
+
+        $driveService = new Google_Service_Drive($googleClient);
+
+        if (!empty($args['file_id'])) {
+            try {
+                $driveService->files->delete($args['file_id']);
+            } catch (Exception $e) {
+            }
+
+            return;
+        }
+        try {
+            $about          = $driveService->about->get();
+            $root_folder_id = $about->getRootFolderId();
+        } catch (Exception $e) {
+
+            return;
+        }
+
+        try {
+            $listFiles = $driveService->files->listFiles(array("q" => "title='".addslashes($args['google_drive_directory'])."' and '$root_folder_id' in parents and trashed = false"));
+            /** @var Google_Service_Drive_DriveFile[] $files */
+            $files = $listFiles->getItems();
+        } catch (Exception $e) {
+
+            return;
+        }
+        if (isset($files[0])) {
+            $managewpFolder = $files[0];
+        } else {
+            return;
+        }
+
+        if ($args['google_drive_site_folder']) {
+            try {
+                $subFolderTitle   = $this->site_name;
+                $managewpFolderId = $managewpFolder->getId();
+                $listFiles        = $driveService->files->listFiles(array("q" => "title='".addslashes($subFolderTitle)."' and '$managewpFolderId' in parents and trashed = false"));
+                $files            = $listFiles->getItems();
+            } catch (Exception $e) {
+                /*return array(
+                    'error' => $e->getMessage(),
+                );*/
+            }
+            if (isset($files[0])) {
+                $backup_folder = $files[0];
+            }
+        } else {
+            /** @var Google_Service_Drive_DriveFile $backup_folder */
+            $backup_folder = $managewpFolder;
+        }
+
+        if (isset($backup_folder)) {
+            try {
+                $backup_folder_id = $backup_folder->getId();
+                $listFiles        = $driveService->files->listFiles(array("q" => "title='".addslashes($args['backup_file'])."' and '$backup_folder_id' in parents and trashed = false"));
+                $files            = $listFiles->getItems();
+            } catch (Exception $e) {
+                /*return array(
+                    'error' => $e->getMessage(),
+                );*/
+            }
+            if (isset($files[0])) {
+                try {
+                    $driveService->files->delete($files[0]->getId());
+                } catch (Exception $e) {
+                }
+            } else {
+            }
+        } else {
+        }
     }
     
     /**
@@ -2765,124 +2773,132 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|array		absolute path to downloaded file is successful, array with error message if not
      */
     function get_google_drive_backup($args) {
-    	extract($args);
-    	
-    	global $cmsc_plugin_dir;
-    	require_once("$cmsc_plugin_dir/lib/google-api-client/Google_Client.php");
-    	require_once("$cmsc_plugin_dir/lib/google-api-client/contrib/Google_DriveService.php");
-    	
-    	try {
-	    	$gdrive_client = new Google_Client();
-	    	$gdrive_client->setUseObjects(true);
-	    	$gdrive_client->setAccessToken($google_drive_token);
-			$gdrive_client->setClientId($google_drive_client_id);
-			$gdrive_client->setClientSecret($google_drive_client_secret);			
-    	} catch (Exception $e) {
-			return array(
-    			'error' => $e->getMessage(),
-    		);
-    	}
-    	
-    	$gdrive_service = new Google_DriveService($gdrive_client);
-    	
-    	try {
-	    	$about = $gdrive_service->about->get();
-	    	$root_folder_id = $about->getRootFolderId();
-    	} catch (Exception $e) {
-			return array(
-    			'error' => $e->getMessage(),
-    		);
-    	}
-    	
-    	try {
-    		$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$google_drive_directory' and '$root_folder_id' in parents and trashed = false"));
-    		$files = $list_files->getItems();
-    	} catch (Exception $e) {
-    		return array(
-    			'error' => $e->getMessage(),
-    		);
-    	}
-    	if (isset($files[0])) {
-    		$cmscommander_folder = $files[0];
-    	} else {
-    		return array(
-	    		'error' => "This file does not exist.",
-	    	);
-    	}
-    	
-    	if ($google_drive_site_folder) {
-    		try {
-	    		$subfolder_title = $this->site_name;
-	    		$cmscommander_folder_id = $cmscommander_folder->getId();
-	    		$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$subfolder_title' and '$cmscommander_folder_id' in parents and trashed = false"));
-	    		$files = $list_files->getItems();
-    		} catch (Exception $e) {
-    			return array(
-    				'error' => $e->getMessage(),
-    			);
-    		}
-    		if (isset($files[0])) {
-    			$backup_folder = $files[0];
-    		}
-    	} else {
-    		$backup_folder = $cmscommander_folder;
-    	}
-    	
-    	if (isset($backup_folder)) {
-    		try {
-	    		$backup_folder_id = $backup_folder->getId();
-	    		$list_files = $gdrive_service->files->listFiles(array("q"=>"title='$backup_file' and '$backup_folder_id' in parents and trashed = false"));
-	    		$files = $list_files->getItems();
-    		} catch (Exception $e) {
-    			return array(
-    				'error' => $e->getMessage(),
-    			);
-    		}
-    		if (isset($files[0])) {
-    			try {
-    				$download_url = $files[0]->getDownloadUrl();
-					if ($download_url) {
-						$request = new Google_HttpRequest($download_url, 'GET', null, null);
-						$http_request = Google_Client::$io->authenticatedRequest($request);
-						if ($http_request->getResponseHttpCode() == 200) {
-							$stream = $http_request->getResponseBody();
-							$local_destination = ABSPATH . 'cmsc_temp_backup.zip';
-							$handle = @fopen($local_destination, 'w+');
-							$result = fwrite($handle, $stream);
-							fclose($handle);
-							if($result)
-								return $local_destination;
-							else
-								return array(
-									'error' => "Write permission error.",
-								);
-						} else {
-							return array(
-				    			'error' => "This file does not exist.",
-				    		);
-						}
-					} else {
-						return array(
-			    			'error' => "This file does not exist.",
-			    		);
-					}
-    			} catch (Exception $e) {
-    				return array(
-		    			'error' => $e->getMessage(),
-		    		);
-    			}
-    		} else {
-    			return array(
-	    			'error' => "This file does not exist.",
-	    		);
-    		}
-    	} else {
-    		return array(
-	    		'error' => "This file does not exist.",
-	    	);
-    	}
-    	
-    	return false;
+        cmsc_register_autoload_google();
+        $googleClient = new Google_ApiClient();
+        $googleClient->setAccessToken($args['google_drive_token']);		
+		$googleClient->setClientId($args['google_drive_client_id']);
+		$googleClient->setClientSecret($args['google_drive_client_secret']);		
+		
+        $driveService = new Google_Service_Drive($googleClient);
+
+        try {
+            $about        = $driveService->about->get();
+            $rootFolderId = $about->getRootFolderId();
+        } catch (Exception $e) {
+
+            return array(
+                'error' => 'Error while connecting to Google Drive: '.$e->getMessage(),
+            );
+        }
+        if (empty($args['file_id'])) {
+            try {
+                $backupFolderFiles = $driveService->files->listFiles(array(
+                    'q' => sprintf("title='%s' and '%s' in parents and trashed = false", addslashes($args['google_drive_directory']), $rootFolderId),
+                ));
+            } catch (Exception $e) {
+
+                return array(
+                    'error' => 'Error while looking for backup directory: '.$e->getMessage(),
+                );
+            }
+
+            if (!$backupFolderFiles->offsetExists(0)) {
+
+                return array(
+                    'error' => sprintf("The backup directory (%s) does not exist.", $args['google_drive_directory']),
+                );
+            }
+
+            /** @var Google_Service_Drive_DriveFile $backupFolder */
+            $backupFolder = $backupFolderFiles->offsetGet(0);
+
+            if ($args['google_drive_site_folder']) {
+                try {
+                    $siteFolderFiles = $driveService->files->listFiles(array(
+                        'q' => sprintf("title='%s' and '%s' in parents and trashed = false", addslashes($this->site_name), $backupFolder->getId()),
+                    ));
+                } catch (Exception $e) {
+
+                    return array(
+                        'error' => 'Error while looking for the site folder: '.$e->getMessage(),
+                    );
+                }
+
+                if ($siteFolderFiles->offsetExists(0)) {
+                    $backupFolder = $siteFolderFiles->offsetGet(0);
+                }
+            }
+
+            try {
+                $backupFiles = $driveService->files->listFiles(array(
+                    'q' => sprintf("title='%s' and '%s' in parents and trashed = false", addslashes($args['backup_file']), $backupFolder->getId()),
+                ));
+            } catch (Exception $e) {
+
+                return array(
+                    'error' => 'Error while fetching Google Drive backup file: '.$e->getMessage(),
+                );
+            }
+
+            if (!$backupFiles->offsetExists(0)) {
+                return array(
+                    'error' => sprintf('Backup file "%s" was not found on your Google Drive account.', $args['backup_file']),
+                );
+            }
+            /** @var Google_Service_Drive_DriveFile $backupFile */
+            $backupFile = $backupFiles->offsetGet(0);
+        } else {
+            try {
+                /** @var Google_Service_Drive_DriveFile $backupFile */
+                $backupFile = $driveService->files->get($args['file_id']);
+            } catch (Exception $e) {
+
+                return array(
+                    'error' => 'Error while fetching Google Drive backup file: '.$e->getMessage(),
+                );
+            }
+        }
+
+        $downloadUrl      = $backupFile->getDownloadUrl();
+        $downloadLocation = ABSPATH.'mwp_temp_backup.zip';
+        $fileSize         = $backupFile->getFileSize();
+        $downloaded       = 0;
+        $chunkSize        = 1024 * 1024 * 4;
+        $fh               = fopen($downloadLocation, 'w+');
+
+        if (!is_resource($fh)) {
+            return array(
+                'error' => 'Temporary backup download location is not writable (location: "%s").',
+                $downloadLocation,
+            );
+        }
+        while ($downloaded < $fileSize) {
+            $request = new Google_Http_Request($downloadUrl);
+            $googleClient->getAuth()->sign($request);
+            $toDownload = min($chunkSize, $fileSize - $downloaded);
+
+            $request->setRequestHeaders($request->getRequestHeaders() + array('Range' => 'bytes='.$downloaded.'-'.($downloaded + $toDownload - 1)));
+            $googleClient->getIo()->makeRequest($request);
+            if ($request->getResponseHttpCode() !== 206) {
+
+                return array(
+                    'error' => sprintf('Google Drive service has returned an invalid response code (%s)', $request->getResponseHttpCode()),
+                );
+            }
+            fwrite($fh, $request->getResponseBody());
+            $downloaded += $toDownload;
+        }
+        fclose($fh);
+
+        $fileMd5 = md5_file($downloadLocation);
+        if ($backupFile->getMd5Checksum() !== $fileMd5) {
+
+            return array(
+                'error' => 'File downloaded was corrupted.',
+            );
+        }
+
+        return $downloadLocation;
     }
     
     /**
@@ -2990,9 +3006,9 @@ class CMSC_Backup extends CMSC_Core {
                             }
                         }
                     }
+					//$stats[$task_name] = array_values($info['task_results']);
+					$stats[$task_name] = $info['task_results'];
                 }
-                if (is_array($info['task_results']))
-                	$stats[$task_name] = array_values($info['task_results']);
             }
         }
         return $stats;
@@ -3050,7 +3066,7 @@ class CMSC_Backup extends CMSC_Core {
                     $this->remove_ftp_backup($args);
                 }
                 if (isset($backups[$task_name]['task_results'][$i]['sftp']) && isset($backups[$task_name]['task_args']['account_info']['cmsc_sftp'])) {
-                    $ftp_file            = $backups[$task_name]['task_results'][$i]['fstp'];
+                    $sftp_file            = $backups[$task_name]['task_results'][$i]['fstp'];
                     $args                = $backups[$task_name]['task_args']['account_info']['cmsc_sftp'];
                     $args['backup_file'] = $sftp_file;
                     $this->remove_sftp_backup($args);
@@ -3072,20 +3088,28 @@ class CMSC_Backup extends CMSC_Core {
                 }
                 
                 if (isset($backups[$task_name]['task_results'][$i]['google_drive']) && isset($backups[$task_name]['task_args']['account_info']['cmsc_google_drive'])) {
-                	$google_drive_file   = $backups[$task_name]['task_results'][$i]['google_drive'];
-                	$args                = $backups[$task_name]['task_args']['account_info']['cmsc_google_drive'];
-                	$args['backup_file'] = $google_drive_file;
-                	$this->remove_google_drive_backup($args);
+                    if (is_array($backups[$task_name]['task_results'][$i]['google_drive'])) {
+                        $google_drive_file = $backups[$task_name]['task_results'][$i]['google_drive']['file'];
+                        $google_file_id    = $backups[$task_name]['task_results'][$i]['google_drive']['file_id'];
+                    } else {
+                        $google_drive_file = $backups[$task_name]['task_results'][$i]['google_drive'];
+                        $google_file_id    = "";
+                    }
+                    $args                = $backups[$task_name]['task_args']['account_info']['cmsc_google_drive'];
+                    $args['backup_file'] = $google_drive_file;
+                    $args['file_id']     = $google_file_id;
+                    $this->remove_google_drive_backup($args);
                 }
                 
                 //Remove database backup info
                 unset($backups[$task_name]['task_results'][$i]);
             } //end foreach
             
-            if (is_array($backups[$task_name]['task_results']))
-            	$backups[$task_name]['task_results'] = array_values($backups[$task_name]['task_results']);
-            else
-            	$backups[$task_name]['task_results']=array();
+            if (is_array($backups[$task_name]['task_results'])) {
+                $backups[$task_name]['task_results'] = array_values($backups[$task_name]['task_results']);
+            } else {
+                $backups[$task_name]['task_results'] = array();
+            }
             
             $this->update_tasks($backups);
             
@@ -3103,8 +3127,9 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool			true if successful, false if not
      */
     function delete_backup($args) {
-        if (empty($args))
+        if (empty($args)) {
             return false;
+        }
         extract($args);
 		$task_name = stripslashes($task_name);
         if (isset($google_drive_token)) {
@@ -3149,10 +3174,17 @@ class CMSC_Backup extends CMSC_Core {
         }
         
         if (isset($backup['google_drive'])) {
-        	$google_drive_file          = $backup['google_drive'];
-        	$args                       = $tasks[$task_name]['task_args']['account_info']['cmsc_google_drive'];
-        	$args['backup_file']        = $google_drive_file;
-        	$this->remove_google_drive_backup($args);
+            if (is_array($backup['google_drive'])) {
+                $google_drive_file = $backup['google_drive']['file'];
+                $google_file_id    = $backup['google_drive']['file_id'];
+            } else {
+                $google_drive_file = $backup['google_drive'];
+                $google_file_id    = "";
+            }
+            $args                = $tasks[$task_name]['task_args']['account_info']['cmsc_google_drive'];
+            $args['backup_file'] = $google_drive_file;
+            $args['file_id']     = $google_file_id;
+            $this->remove_google_drive_backup($args);
         }
         
         unset($backups[$result_id]);
@@ -3164,7 +3196,7 @@ class CMSC_Backup extends CMSC_Core {
         }
         
         $this->update_tasks($tasks);
-        //update_option('cmsc_backup_tasks', $tasks);
+
         return true;
     }
     
@@ -3245,21 +3277,34 @@ class CMSC_Backup extends CMSC_Core {
      */
     function remote_backup_now($args) {
 		$this->set_memory();        
-        if (!empty($args))
+        if (!empty($args)) {
             extract($args);
-        
-        $tasks = $this->tasks;
-        $task  = $tasks[$task_name];
+        }
+		
+        $tasks     = $this->tasks;
+        $task_name = stripslashes($task_name);
+        $task      = $tasks[$task_name];
 
         if (!empty($task)) {
             extract($task['task_args']);
         }
 		
-        $results = $task['task_results'];	
+        $results       = $task['task_results'];
+        $taskResultKey = null;
+        $backup_file   = false;
 		
         if (is_array($results) && count($results)) {
-
-            $backup_file = $results[count($results) - 1]['server']['file_path'];
+            foreach ($results as $key => $result) {
+                if (array_key_exists('resultUuid', $result) && $result['resultUuid'] == $args['resultUuid']) {
+                    $backup_file   = $result['server']['file_path'];
+                    $taskResultKey = $key;
+                    break;
+                }
+            }
+            if (!$backup_file) {
+                $backup_file   = $results[count($results) - 1]['server']['file_path'];
+                $taskResultKey = count($results) - 1;
+            }
         }
 		
            // $return = array( 'error' => $results );	return $return;
@@ -3329,11 +3374,14 @@ class CMSC_Backup extends CMSC_Core {
             
             if (isset($account_info['cmsc_google_drive']) && !empty($account_info['cmsc_google_drive'])) {
             	$this->update_status($task_name, $this->statuses['google_drive']);
-            	$account_info['cmsc_google_drive']['backup_file'] = $backup_file;
-            	$return                                       = $this->google_drive_backup($account_info['cmsc_google_drive']);
+            	$account_info['cmsc_google_drive']['backup_file'] = $backup_file;	
+                $account_info['cmsc_google_drive']['task_name']       = $task_name;
+                $account_info['cmsc_google_drive']['task_result_key'] = $taskResultKey;	
+				
+            	$return = $this->google_drive_backup($account_info['cmsc_google_drive']);
             	$this->wpdb_reconnect();
             	
-            	if (!(is_array($return) && isset($return['error']))) {
+            	if (!isset($return['error'])) {
             		$this->update_status($task_name, $this->statuses['google_drive'], true);
             		$this->update_status($task_name, $this->statuses['finished'], true);
             	}
@@ -3418,10 +3466,7 @@ class CMSC_Backup extends CMSC_Core {
     function update_status($task_name, $status, $completed = false) {
         if ($task_name != 'Backup Now') {
             $tasks = $this->tasks;
-            $index = count($tasks[$task_name]['task_results']) - 1;
-			
-			//$index = 0;$tasks["statuslog"][] = array("name" => $task_name, "status" => $status, "index" => $index, "completed" => $completed); // REMOVE CMSC	
-
+            $index = count($tasks[$task_name]['task_results']) - 1;			
             if (!is_array($tasks[$task_name]['task_results'][$index]['status'])) {
                 $tasks[$task_name]['task_results'][$index]['status'] = array();
             }
@@ -3433,7 +3478,6 @@ class CMSC_Backup extends CMSC_Core {
             }
             
             $this->update_tasks($tasks);
-            //update_option('cmsc_backup_tasks',$tasks);
         }
     }
     
@@ -3447,7 +3491,6 @@ class CMSC_Backup extends CMSC_Core {
         $this->tasks = $tasks;
 
         $result = update_option('cmsc_backup_tasks', $tasks);
-		$this->_log($tasks["testt3"]["task_results"]);$this->_log("Saving Worked: " . $result); /// CMSC LOG
     }
     
     /**
@@ -3569,12 +3612,16 @@ if(!function_exists('get_all_files_from_dir')) {
 	 * @return 	array 				List of all files in folder $path, exclude all files in $exclude array
 	 */
 	function get_all_files_from_dir($path, $exclude = array()) {
-		if ($path[strlen($path) - 1] === "/") $path = substr($path, 0, -1);
+        if ($path[strlen($path) - 1] === "/") {
+            $path = substr($path, 0, -1);
+        }
 		global $directory_tree, $ignore_array;
 		$directory_tree = array();
 		foreach ($exclude as $file) {
 			if (!in_array($file, array('.', '..'))) {
-				if ($file[0] === "/") $path = substr($file, 1);
+                if ($file[0] === "/") {
+                    $path = substr($file, 1);
+                }
 				$ignore_array[] = "$path/$file";
 			}
 		}

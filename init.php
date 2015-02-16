@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.12
+Version: 2.13
 Author URI: http://cmscommander.com
 */
 
@@ -22,7 +22,7 @@ if(basename($_SERVER['SCRIPT_FILENAME']) == "init.php"):
     exit;
 endif;
 if(!defined('CMSC_WORKER_VERSION'))
-	define('CMSC_WORKER_VERSION', '2.12');
+	define('CMSC_WORKER_VERSION', '2.13');
 
 if ( !defined('CMSC_XFRAME_COOKIE')){
 	$siteurl = function_exists( 'get_site_option' ) ? get_site_option( 'siteurl' ) : get_option( 'siteurl' );
@@ -1305,5 +1305,75 @@ if (get_option('cmsc_debug_enable')) {
     set_error_handler('cmsc_error_handler');
     register_shutdown_function('cmsc_fatal_error_handler');
 }
+
+// FUNCTIONS
+
+function cmsc_autoload($class) {
+    if (substr($class, 0, 8) === 'Dropbox_'
+        || substr($class, 0, 8) === 'Symfony_'
+        || substr($class, 0, 8) === 'Monolog_'
+        || substr($class, 0, 5) === 'Gelf_'
+        || substr($class, 0, 4) === 'MWP_'
+        || substr($class, 0, 4) === 'MMB_'
+        || substr($class, 0, 3) === 'S3_'
+    ) {
+        $file = dirname(__FILE__).'/lib/'.str_replace('_', '/', $class).'.php';
+        if (file_exists($file)) {
+            include_once $file;
+        }
+    }
+}
+
+function cmsc_register_autoload_google() {
+    static $registered;
+
+    if ($registered) {
+        return;
+    } else {
+        $registered = true;
+    }
+
+    if (version_compare(PHP_VERSION, '5.3', '<')) {
+        spl_autoload_register('cmsc_autoload_google');
+    } else {
+        spl_autoload_register('cmsc_autoload_google', true, true);
+    }
+}
+
+function cmsc_autoload_google($class) {
+    if (substr($class, 0, 7) === 'Google_') {
+        $file = dirname(__FILE__).'/lib/'.str_replace('_', '/', $class).'.php';
+        if (file_exists($file)) {
+            include_once $file;
+        }
+    }
+}
+
+function cmsc_dropbox_oauth_factory($appKey, $appSecret, $token, $tokenSecret = null) {
+    if ($tokenSecret) {
+        $oauthToken       = 'OAuth oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="'.$appKey.'", oauth_token="'.$token.'", oauth_signature="'.$appSecret.'&'.$tokenSecret.'"';
+        $clientIdentifier = $token;
+    } else {
+        $oauthToken       = 'Bearer '.$token;
+        $clientIdentifier = 'PHP-CMSCommander/1.0';
+    }
+
+    return new Dropbox_Client($oauthToken, $clientIdentifier);
+}
+
+if (!function_exists('cmsc_init')) {
+    function cmsc_init() {
+	
+        // Register the autoloader that loads everything except the Google namespace.
+        if (version_compare(PHP_VERSION, '5.3', '<')) {
+            spl_autoload_register('cmsc_autoload');
+        } else {
+            // The prepend parameter was added in PHP 5.3.0
+            spl_autoload_register('cmsc_autoload', true, true);
+        }	
+	
+	}
+}
+    cmsc_init();
 
 ?>
