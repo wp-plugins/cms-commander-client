@@ -93,16 +93,22 @@ class CMSC_User extends CMSC_Core
     	
     	if (email_exists($args['user_email']))
     		return array('error' => 'Email already exists');
-    	
+
 			if(!function_exists('wp_insert_user'))
 			 include_once (ABSPATH . 'wp-admin/includes/user.php');
 			
 			$user_id = wp_insert_user($args);
 			
-			wp_update_user( array ('ID' => $user_id, 'role' => $args['role'] ) ) ;
+			if( is_wp_error( $user_id ) ) {
+				return array('error' => 'User creation failed: '.$user_id->get_error_message());
+			}
 			
 			if($user_id){
 			
+				if($user_id != 1) {
+					wp_update_user( array ('ID' => $user_id, 'role' => $args['role'] ) ) ;
+				}
+				
 				if($args['email_notify']){
 					//require_once ABSPATH . WPINC . '/pluggable.php';
 					wp_new_user_notification($user_id, $args['user_pass']);
