@@ -2,7 +2,7 @@
 Contributors: thoefter
 Tags: cmscommander, cms, admin, analytics, amazon, api, google, drive, authentication, automatic, backup, dashboard, dropbox, integration, manage, s3, stats, affiliate, flickr, images, affiliate, ads, youtube, videos, yahoo
 Tested up to: 4.2
-Stable tag: 2.15
+Stable tag: 2.16
 
 CMS Commander helps you to manage all your WordPress sites faster and from a single dashboard.
 
@@ -49,6 +49,10 @@ The CMS Commander WordPress plugin handles the communication between your indivi
 Credits: [Vladimir Prelovac](http://prelovac.com/vladimir) for his worker plugin on which the CMS Commander plugin is based.
 
 == Changelog ==  
+
+= 2.16 =
+
+- Fix: Fixes a bug with the 1-click login feature that had been introduced by the previous update
 
 = 2.15 =
 

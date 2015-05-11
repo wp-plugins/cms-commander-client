@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.15
+Version: 2.16
 Author URI: http://cmscommander.com
 */
 
@@ -296,7 +296,7 @@ if (!function_exists('cmsc_init')) {
             spl_autoload_register('cmsc_autoload', true, true);
         }	
 		
-        $GLOBALS['CMSC_WORKER_VERSION']  = '2.15';define('CMSC_WORKER_VERSION', '2.15');		
+        $GLOBALS['CMSC_WORKER_VERSION']  = '2.16';define('CMSC_WORKER_VERSION', '2.16');		
 		$GLOBALS['cmsc_core']            = $core = $GLOBALS['cmsc_core_backup'] = new CMSC_Core();
         $GLOBALS['cmsc_plugin_dir']      = WP_PLUGIN_DIR.'/'.basename(dirname(__FILE__));
         $GLOBALS['cmsc_plugin_url']      = WP_PLUGIN_URL.'/'.basename(dirname(__FILE__));
@@ -309,7 +309,7 @@ if (!function_exists('cmsc_init')) {
 		define('CMSC_DB_DIR', CMSC_BACKUP_DIR . '/cmsc_db');					
 
 		if(isset($_GET['auto_login'])) {
-			$cmsc_core->automatic_login();	
+			$core->automatic_login();	
 		}
 		cmsc_add_action('cleanup_delete', 'cleanup_delete_cmsc');	
 		add_filter( 'cmsc_website_add', 'cmsc_readd_backup_task' );
