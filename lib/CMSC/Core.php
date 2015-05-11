@@ -14,7 +14,6 @@ if(basename($_SERVER['SCRIPT_FILENAME']) == "core.class.php"):
 endif;
 class CMSC_Core extends CMSC_Helper
 {
-    var $name;
     var $slug;
     var $settings;
     var $remote_client;
@@ -49,22 +48,13 @@ class CMSC_Core extends CMSC_Helper
 		$_cmsc_options = get_option('cmscsettings');
 		$_cmsc_options = !empty($_cmsc_options) ? $_cmsc_options : array();
 		
-        $this->name     = 'Manage Multiple Blogs';
-		$this->action_call = null;
-		$this->action_params = null;
-		
-		if ( function_exists('is_multisite') ) {
-            if ( is_multisite() ) {
-                $this->cmsc_multisite = $blog_id;
-                $this->network_admin_install = get_option('cmsc_network_admin_install');
-            }
-        } else if (!empty($wpmu_version)) {
-            $this->cmsc_multisite = $blog_id;
+        if (is_multisite()) {
+            $this->cmsc_multisite         = $blog_id;
             $this->network_admin_install = get_option('cmsc_network_admin_install');
         } else {
-			$this->cmsc_multisite = false;
-			$this->network_admin_install = null;
-		}
+            $this->cmsc_multisite         = false;
+            $this->network_admin_install = null;
+        }		
 		
 		// admin notices
 		if ( !get_option('_cmsc_public_key') ){
@@ -207,7 +197,7 @@ class CMSC_Core extends CMSC_Helper
 		}
 		
 		add_action('admin_init', array(&$this,'admin_actions'));  		
-		add_action('init', array( &$this, 'cmsc_remote_action'), 3);
+		add_action('init', array( &$this, 'cmsc_remote_action'), 11);
 		add_action('setup_theme', 'cmsc_run_backup_action', 1);
         add_action('plugins_loaded', 'cmsc_authenticate', 1);
 		add_action('setup_theme', 'cmsc_parse_request', 8);		
@@ -318,34 +308,7 @@ class CMSC_Core extends CMSC_Helper
         
         return $this->comment_instance;
     }
-    
-    /**
-     * Gets an instance of the Plugin class
-     * 
-     */
-    function get_plugin_instance()
-    {
-        if (!isset($this->plugin_instance)) {
-            $this->plugin_instance = new CMSC_Plugin();
-        }
-        
-        return $this->plugin_instance;
-    }
-    
-    /**
-     * Gets an instance of the Theme class
-     * 
-     */
-    function get_theme_instance()
-    {
-        if (!isset($this->theme_instance)) {
-            $this->theme_instance = new CMSC_Theme();
-        }
-        
-        return $this->theme_instance;
-    }
-    
-    
+ 
     /**
      * Gets an instance of CMSC_Post class
      * 
@@ -357,34 +320,6 @@ class CMSC_Core extends CMSC_Helper
         }
         
         return $this->post_instance;
-    }
-    
-    /**
-     * Gets an instance of Blogroll class
-     * 
-     */
-    function get_blogroll_instance()
-    {
-        if (!isset($this->blogroll_instance)) {
-            $this->blogroll_instance = new CMSC_Blogroll();
-        }
-        
-        return $this->blogroll_instance;
-    }
-    
-    
-    
-    /**
-     * Gets an instance of the WP class
-     * 
-     */
-    function get_wp_instance()
-    {
-        if (!isset($this->wp_instance)) {
-            $this->wp_instance = new CMSC_WP();
-        }
-        
-        return $this->wp_instance;
     }
     
     /**
@@ -411,18 +346,7 @@ class CMSC_Core extends CMSC_Helper
         }
         return $this->stats_instance;
     }
-    /**
-     * Gets an instance of search class
-     * 
-     */
-    function get_search_instance()
-    {
-        if (!isset($this->search_instance)) {
-            $this->search_instance = new CMSC_Search();
-        }
-        //return $this->search_instance;
-        return $this->search_instance;
-    }
+
     /**
      * Gets an instance of stats class
      *
@@ -434,19 +358,6 @@ class CMSC_Core extends CMSC_Helper
         }
         
         return $this->backup_instance;
-    }
-    
-    /**
-     * Gets an instance of links class
-     *
-     */
-    function get_link_instance()
-    {
-        if (!isset($this->link_instance)) {
-            $this->link_instance = new CMSC_Link();
-        }
-        
-        return $this->link_instance;
     }
     
     function get_installer_instance()
@@ -478,9 +389,9 @@ class CMSC_Core extends CMSC_Helper
 						else 
 							update_blog_option($details->blog_id, 'cmsc_network_admin_install', -1);
 							
-						delete_blog_option($blog_id, '_cmsc_nossl_key');
-						delete_blog_option($blog_id, '_cmsc_public_key');
-						delete_blog_option($blog_id, '_cmsc_action_message_id');
+						delete_blog_option($details->blog_id, '_cmsc_nossl_key');
+						delete_blog_option($details->blog_id, '_cmsc_public_key');
+						delete_blog_option($details->blog_id, '_cmsc_action_message_id');
 					}
 				} else {
 					update_option('cmsc_network_admin_install', -1);
@@ -585,17 +496,17 @@ class CMSC_Core extends CMSC_Helper
     
     /**
      * Worker update
-     * 
      */
     function update_cmsc_plugin($params)
     {
         extract($params);
         if ($download_url) {
-            @include_once ABSPATH . 'wp-admin/includes/file.php';
-            @include_once ABSPATH . 'wp-admin/includes/misc.php';
-            @include_once ABSPATH . 'wp-admin/includes/template.php';
-            @include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-            @include_once ABSPATH . 'wp-admin/includes/screen.php';
+            @include_once ABSPATH.'wp-admin/includes/file.php';
+            @include_once ABSPATH.'wp-admin/includes/misc.php';
+            @include_once ABSPATH.'wp-admin/includes/template.php';
+            @include_once ABSPATH.'wp-admin/includes/class-wp-upgrader.php';
+            @include_once ABSPATH.'wp-admin/includes/screen.php';
+            @include_once ABSPATH.'wp-admin/includes/plugin.php';
             
             if (!$this->is_server_writable()) {
                 return array(

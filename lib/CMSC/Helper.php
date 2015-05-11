@@ -1,15 +1,12 @@
 <?php
+
 /*************************************************************
- * 
  * helper.class.php
- * 
  * Utility functions
- * 
- * 
  * Copyright (c) 2011 Prelovac Media
  * www.prelovac.com
  **************************************************************/
-
+ 
 define('CMSC_SHOW_LOG', false);
 
 class CMSC_Helper
@@ -86,19 +83,15 @@ class CMSC_Helper
 	
 	function cmsc_get_user_info( $user_info = false, $info = 'login' ){
 				
-		if($user_info === false)
-			return false;
-			
-		if( strlen( trim( $user_info ) ) == 0)
-			return false;
-			
-			
-		global $wp_version;
-		if (version_compare($wp_version, '3.2.2', '<=')){
-			return get_userdatabylogin( $user_info );
-		} else {
-			return get_user_by( $info, $user_info );
-		}
+        if ($user_info === false) {
+            return false;
+        }
+
+        if (strlen(trim($user_info)) == 0) {
+            return false;
+        }
+
+        return get_user_by($info, $user_info);
 	}
 	
 	/**
@@ -139,12 +132,14 @@ class CMSC_Helper
 	
 	function cmsc_function_exists($function_callback){
 		
-		if(!function_exists($function_callback))
-			return false;
+        if (!function_exists($function_callback)) {
+            return false;
+        }
 			
 		$disabled = explode(', ', @ini_get('disable_functions'));
-		if (in_array($function_callback, $disabled))
-			return false;
+        if (in_array($function_callback, $disabled)) {
+            return false;
+        }
 			
 		if (extension_loaded('suhosin')) {
 			$suhosin = @ini_get("suhosin.executor.func.blacklist");
@@ -191,39 +186,22 @@ class CMSC_Helper
         if (trim($option_name) == '') {
             return FALSE;
         }
-        if($this->cmsc_multisite)
+		if (!empty($this->cmsc_multisite)) {
 			return $this->cmsc_get_sitemeta_transient($option_name);
-			
-        global $wp_version;
+		}
 		
-        $transient = array();
-		
-        if (version_compare($wp_version, '2.7.9', '<=')) {
-			return get_option($option_name);
-        } else if (version_compare($wp_version, '2.9.9', '<=')) {
-			$transient = get_option('_transient_' . $option_name);
-			return apply_filters("transient_".$option_name, $transient);
-        } else {
-			$transient = get_option('_site_transient_' . $option_name);
-			return apply_filters("site_transient_".$option_name, $transient);
-        }
+        $transient = get_option('_site_transient_'.$option_name);
+
+        return apply_filters("site_transient_".$option_name, $transient);
     }
     
     function cmsc_delete_transient($option_name)
     {
         if (trim($option_name) == '') {
-            return FALSE;
+            return;
         }
-        
-        global $wp_version;
-        
-		if (version_compare($wp_version, '2.7.9', '<=')) {
-            delete_option($option_name);
-        } else if (version_compare($wp_version, '2.9.9', '<=')) {
-            delete_option('_transient_' . $option_name);
-        } else {
-            delete_option('_site_transient_' . $option_name);
-        }
+
+        delete_option('_site_transient_'.$option_name);
     }
     
 	function cmsc_get_sitemeta_transient($option_name){
@@ -394,11 +372,13 @@ class CMSC_Helper
 	function get_secure_hash(){
 		
 		$pl_key = $this->get_master_public_key();
-		if ( empty($pl_key) )
-			$pl_key = $this->get_random_signature();
-        
-		if( !empty($pl_key) )
-			return md5(base64_encode($pl_key));
+        if (empty($pl_key) || $this->get_random_signature() !== false) {
+            $pl_key = $this->get_random_signature();
+        }
+		
+        if (!empty($pl_key)) {
+            return md5(base64_encode($pl_key));
+        }
 		
 		return false;		
 	}
@@ -481,16 +461,6 @@ class CMSC_Helper
         return false;
     }
     
-    function refresh_updates()
-    {
-        if (rand(1, 3) == '2') {
-            require_once(ABSPATH . WPINC . '/update.php');
-            wp_update_plugins();
-            wp_update_themes();
-            wp_version_check();
-        }
-    }
-    
     function remove_http($url = '')
     {
         if ($url == 'http://' OR $url == 'https://') {
@@ -520,28 +490,29 @@ class CMSC_Helper
     }
     
 	function is_server_writable(){
-		if((!defined('FTP_HOST') || !defined('FTP_USER') || !defined('FTP_PASS')) && (get_filesystem_method(array(), false) != 'direct'))
-			return false;
-		else
-			return true;
+        if ((!defined('FTP_HOST') || !defined('FTP_USER')) && (get_filesystem_method(array(), false) != 'direct')) {
+            return false;
+        } else {
+            return true;
+        }
 	}
 	
-	function cmsc_download_url($url, $file_name)
-	{
-    if (function_exists('fopen') && function_exists('ini_get') && ini_get('allow_url_fopen') == true && ($destination = @fopen($file_name, 'wb')) && ($source = @fopen($url, "r")) ) {
-    
-    
-    while ($a = @fread($source, 1024* 1024)) {
-    @fwrite($destination, $a);
-    }
-    
-    fclose($source);
-    fclose($destination);
-    } else 
-    if (!fsockopen_download($url, $file_name))
-        die('Error downloading file ' . $url);
-    return $file_name;
-	 }
+    public function w3tc_flush($flushAll = false)
+    {
+        if ($flushAll) {
+            if (function_exists('w3tc_pgcache_flush')) {
+                w3tc_pgcache_flush();
+            }
+
+            if (function_exists('w3tc_dbcache_flush')) {
+                w3tc_dbcache_flush();
+            }
+        }
+
+        if (function_exists('w3tc_objectcache_flush')) {
+            w3tc_objectcache_flush();
+        }
+    }	
 	 
 	function return_bytes($val) {
 		$val = trim($val);

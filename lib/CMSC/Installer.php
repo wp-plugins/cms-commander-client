@@ -1,11 +1,8 @@
 <?php
+
 /*************************************************************
- * 
  * installer.class.php
- * 
  * Upgrade WordPress
- * 
- * 
  * Copyright (c) 2011 Prelovac Media
  * www.prelovac.com
  **************************************************************/
@@ -45,46 +42,68 @@ class CMSC_Installer extends CMSC_Core
         }
     }
     
+    function install_remote_files($params) {
+        $data = array();
+        foreach ($params['plugins'] as $theme) {
+            $dataTmp           = $this->install_remote_file($theme);
+            $pluginName        = key($dataTmp);
+            $data[$pluginName] = $dataTmp;
+        }
+        foreach ($params['themes'] as $theme) {
+            $dataTmp          = $this->install_remote_file($theme);
+            $themeName        = key($dataTmp);
+            $data[$themeName] = $dataTmp;
+        }
+
+        return $data;
+    }    
+    
     function install_remote_file($params)
     {
         global $wp_filesystem;
         extract($params);
         
-        if (!isset($package) || empty($package))
+        if (!isset($package) || empty($package)) {
             return array(
                 'error' => '<p>No files received. Internal error.</p>'
             );
-			
+	}
+	
         if (!$this->is_server_writable()) {
             return array(
                 'error' => 'Failed. Writing to server not possible, please add FTP details'
             );
         }			
         
-        if (defined('WP_INSTALLING') && file_exists(ABSPATH . '.maintenance'))
+        if (defined('WP_INSTALLING') && file_exists(ABSPATH . '.maintenance')) {
             return array(
                 'error' => '<p>Site under maintanace.</p>'
             );
-        
-        if (!class_exists('WP_Upgrader'))
-            include_once(ABSPATH . 'wp-admin/includes/class-wp-upgrader.php');
-        
+        }
+	
+        if (!class_exists('WP_Upgrader')) {
+            include_once ABSPATH.'wp-admin/includes/class-wp-upgrader.php';
+        }
+	
         $upgrader_skin = new WP_Upgrader_Skin();
         $upgrader_skin->done_header = true;
         
         $upgrader          = new WP_Upgrader($upgrader_skin);
+		$upgrader->init();
         $destination       = $type == 'themes' ? WP_CONTENT_DIR . '/themes' : WP_PLUGIN_DIR;
         $clear_destination = isset($clear_destination) ? $clear_destination : false;
         
         foreach ($package as $package_url) {
             $key                = basename($package_url);
-            $install_info[$key] = @$upgrader->run(array(
-                'package' => $package_url,
-                'destination' => $destination,
-                'clear_destination' => $clear_destination, //Do not overwrite files.
-                'clear_working' => true,
-                'hook_extra' => array()
-            ));
+            $install_info[$key] = @$upgrader->run(
+		    array(
+			'package' => $package_url,
+			'destination' => $destination,
+			'clear_destination' => $clear_destination, //Do not overwrite files.
+			'clear_working' => true,
+			'hook_extra' => array()
+		    )
+		);
         }
         
         if ($activate) {
@@ -94,64 +113,90 @@ class CMSC_Installer extends CMSC_Core
                 foreach ($all_plugins as $plugin_slug => $plugin) {
                     $plugin_dir = preg_split('/\//', $plugin_slug);
                     foreach ($install_info as $key => $install) {
-                        if (!$install || is_wp_error($install))
+                        if (!$install || is_wp_error($install)) {
                             continue;
+						}    
                         if ($install['destination_name'] == $plugin_dir[0]) {
                             $install_info[$key]['activated'] = activate_plugin($plugin_slug, '', false);
                         }
                     }
                 }
-            } else if (count($install_info) == 1) {
-                global $wp_themes;
-                include_once(ABSPATH . 'wp-includes/theme.php');
-                
-                $wp_themes = null;
-                unset($wp_themes); //prevent theme data caching				
-                if(function_exists('wp_get_themes')){
-	                $all_themes = wp_get_themes();
-	                foreach ($all_themes as $theme_name => $theme_data) {
-	                    foreach ($install_info as $key => $install) {
-	                        if (!$install || is_wp_error($install))
-	                            continue;
-	                        
-	                        if ($theme_data->Template == $install['destination_name']) {
-	                            $install_info[$key]['activated'] = switch_theme($theme_data->Template, $theme_data->Stylesheet);
-	                        }
-	                    }
-	                }
-                }else{                
-					$all_themes = get_themes();
-					foreach ($all_themes as $theme_name => $theme_data) {
-						foreach ($install_info as $key => $install) {
-							if (!$install || is_wp_error($install))
-								continue;
-							
-							if ($theme_data['Template'] == $install['destination_name']) {
-								$install_info[$key]['activated'] = switch_theme($theme_data['Template'], $theme_data['Stylesheet']);
+            } else {
+				if (count($install_info) == 1) {
+					global $wp_themes;
+					include_once(ABSPATH . 'wp-includes/theme.php');
+
+					$wp_themes = null;
+					unset($wp_themes); //prevent theme data caching				
+					if(function_exists('wp_get_themes')){
+						$all_themes = wp_get_themes();
+						foreach ($all_themes as $theme_name => $theme_data) {
+							foreach ($install_info as $key => $install) {
+								if (!$install || is_wp_error($install)) {
+									continue;
+								}
+								
+								if ($theme_data->Template == $install['destination_name']) {
+									$install_info[$key]['activated'] = switch_theme($theme_data->Template, $theme_data->Stylesheet);
+								}
+							}
+						}
+					} else {                
+						$all_themes = get_themes();
+						foreach ($all_themes as $theme_name => $theme_data) {
+							foreach ($install_info as $key => $install) {
+								if (!$install || is_wp_error($install)) {
+									continue;
+								}
+								
+								if ($theme_data['Template'] == $install['destination_name']) {
+									$install_info[$key]['activated'] = switch_theme($theme_data['Template'], $theme_data['Stylesheet']);
+								}
 							}
 						}
 					}
 				}
 			}
-		}	
+		}		
         ob_clean();
         $this->cmsc_maintenance_mode(false);
         return $install_info;
     }
     
+    function ithemes_updater_compatiblity()
+    {
+        // Check for the iThemes updater class
+        if (empty($GLOBALS['ithemes_updater_path']) ||
+            !file_exists($GLOBALS['ithemes_updater_path'].'/settings.php')
+        ) {
+            return;
+        }
+
+        // Include iThemes updater
+        require_once $GLOBALS['ithemes_updater_path'].'/settings.php';
+
+        // Check if the updater is instantiated
+        if (empty($GLOBALS['ithemes-updater-settings'])) {
+            return;
+        }
+
+        // Update the download link
+        $GLOBALS['ithemes-updater-settings']->flush('forced');
+    }    
+    
     function do_upgrade($params = null)
     {
-		if ($params == null || empty($params))
+		if ($params == null || empty($params)) {
             return array(
                 'error' => 'No upgrades passed.'
             );
-        
+        }
+	
         if (!$this->is_server_writable()) {
             return array(
                 'error' => 'Failed, please <a target="_blank" href="http://cmscommander.com/documentation/faqs-problems/#q3">add FTP details</a>'
             );
-        }
-        
+        }      
 		
         $params = isset($params['upgrades_all']) ? $params['upgrades_all'] : $params;
         
@@ -167,29 +212,33 @@ class CMSC_Installer extends CMSC_Core
         
         if (!empty($upgrade_plugins)) {
             $plugin_files = array();
+			$this->ithemes_updater_compatiblity();
             foreach ($upgrade_plugins as $plugin) {
-                if (isset($plugin->file))
-                    $plugin_files[$plugin->file] = $plugin->old_version;
-                else
-                    $premium_upgrades[md5($plugin->name)] = $plugin;
+                if (isset($plugin['file'])) {
+                    $plugin_files[$plugin['file']] = $plugin['old_version'];
+                } else {
+                    $premium_upgrades[md5($plugin['name'])] = $plugin;
+                }
             }
-            if (!empty($plugin_files))
+            if (!empty($plugin_files)) {
                 $upgrades['plugins'] = $this->upgrade_plugins($plugin_files);
-            
+            }
+            $this->ithemes_updater_compatiblity();
         }
         
         if (!empty($upgrade_themes)) {
             $theme_temps = array();
             foreach ($upgrade_themes as $theme) {
-                if (isset($theme['theme_tmp']))
+                if (isset($theme['theme_tmp'])) {
                     $theme_temps[] = $theme['theme_tmp'];
-                else
+                } else {
                     $premium_upgrades[md5($theme['name'])] = $theme;
+                }
             }
             
-            if (!empty($theme_temps))
+            if (!empty($theme_temps)) {
                 $upgrades['themes'] = $this->upgrade_themes($theme_temps);
-            
+            }
         }
         
         if (!empty($premium_upgrades)) {
@@ -206,7 +255,7 @@ class CMSC_Installer extends CMSC_Core
                 }
             }
         }
-        ob_clean();
+        @ob_clean();
         $this->cmsc_maintenance_mode(false);
         return $upgrades;
     }
@@ -218,9 +267,11 @@ class CMSC_Installer extends CMSC_Core
     function upgrade_core($current)
     {
         ob_start();
-        if (file_exists(ABSPATH . '/wp-admin/includes/update.php'))
-            include_once(ABSPATH . '/wp-admin/includes/update.php');
-        
+	
+        if (file_exists(ABSPATH.'/wp-admin/includes/update.php')) {
+            include_once ABSPATH.'/wp-admin/includes/update.php';
+        }
+
         @wp_version_check();
         
         $current_update = false;
@@ -231,44 +282,51 @@ class CMSC_Installer extends CMSC_Core
         if (isset($core->updates) && !empty($core->updates)) {
             $updates = $core->updates[0];
             $updated = $core->updates[0];
-            if (!isset($updated->response) || $updated->response == 'latest')
+            if (!isset($updated->response) || $updated->response == 'latest') {
                 return array(
                     'upgraded' => ' updated'
                 );
-            
-            if ($updated->response == "development" && $current->response == "upgrade") {
+            }
+	    
+            if ($updated->response == "development" && $current['response'] == "upgrade") {
                 return array(
                     'error' => '<font color="#900">Unexpected error. Please upgrade manually.</font>'
                 );
-            } else if ($updated->response == $current->response || ($updated->response == "upgrade" && $current->response == "development")) {
-                if ($updated->locale != $current->locale) {
-                    foreach ($updates as $update) {
-                        if ($update->locale == $current->locale) {
-                            $current_update = $update;
-                            break;
+            } else {
+                if ($updated->response == $current['response'] || ($updated->response == "upgrade" && $current['response'] == "development")) {
+                    if ($updated->locale != $current['locale']) {
+                        foreach ($updates as $update) {
+                            if ($update->locale == $current['locale']) {
+                                $current_update = $update;
+                                break;
+                            }
                         }
+                        if ($current_update == false) {
+                            return array(
+                                'error' => ' Localization mismatch. Try again.',
+                            );
+                        }
+                    } else {
+                        $current_update = $updated;
                     }
-                    if ($current_update == false)
-                        return array(
-                            'error' => ' Localization mismatch. Try again.'
-                        );
                 } else {
-                    $current_update = $updated;
+                    return array(
+                        'error' => ' Transient mismatch. Try again.',
+                    );
                 }
-            } else
-                return array(
-                    'error' => ' Transient mismatch. Try again.'
-                );
-        } else
+            }
+        } else {
             return array(
-                'error' => ' Refresh transient failed. Try again.'
+                'error' => ' Refresh transient failed. Try again.',
             );
+        }
         if ($current_update != false) {
             global $cmsc_wp_version, $wp_filesystem, $wp_version;
             
             if (version_compare($wp_version, '3.1.9', '>')) {
-                if (!class_exists('Core_Upgrader'))
-                    include_once(ABSPATH . 'wp-admin/includes/class-wp-upgrader.php');
+                if (!class_exists('Core_Upgrader')) {
+                    include_once ABSPATH.'wp-admin/includes/class-wp-upgrader.php';
+                }
                 
                 $core   = new Core_Upgrader();
                 $result = $core->upgrade($current_update);
@@ -277,11 +335,11 @@ class CMSC_Installer extends CMSC_Core
                     return array(
                         'error' => $this->cmsc_get_error($result)
                     );
-                } else
+                } else {
                     return array(
-                        'upgraded' => ' updated'
+                        'upgraded' => ' updated',
                     );
-                
+                }
             } else {
                 if (!class_exists('WP_Upgrader')) {
                     include_once(ABSPATH . 'wp-admin/includes/update.php');
@@ -291,10 +349,11 @@ class CMSC_Installer extends CMSC_Core
                             return array(
                                 'error' => $this->cmsc_get_error($result)
                             );
-                        } else
+                        } else {
                             return array(
-                                'upgraded' => ' updated'
+                                'upgraded' => ' updated',
                             );
+                        }
                     }
                 }
                 
@@ -305,42 +364,50 @@ class CMSC_Installer extends CMSC_Core
                     $upgrader = new WP_Upgrader($upgrader_skin);
                     
                     // Is an update available?
-                    if (!isset($current_update->response) || $current_update->response == 'latest')
+                    if (!isset($current_update->response) || $current_update->response == 'latest') {
                         return array(
-                            'upgraded' => ' updated'
+                            'upgraded' => ' updated',
                         );
+                    }
                     
-                    $res = $upgrader->fs_connect(array(
-                        ABSPATH,
-                        WP_CONTENT_DIR
-                    ));
-                    if (is_wp_error($res))
+                    $res = $upgrader->fs_connect(
+                        array(
+                            ABSPATH,
+                            WP_CONTENT_DIR,
+                        )
+                    );
+                    if (is_wp_error($res)) {
                         return array(
-                            'error' => $this->cmsc_get_error($res)
+                            'error' => $this->cmsc_get_error($res),
                         );
+                    }
                     
                     $wp_dir = trailingslashit($wp_filesystem->abspath());
                     
                     $core_package = false;
-                    if (isset($current_update->package) && !empty($current_update->package))
+                    if (isset($current_update->package) && !empty($current_update->package)) {
                         $core_package = $current_update->package;
-                    elseif (isset($current_update->packages->full) && !empty($current_update->packages->full))
+                    } elseif (isset($current_update->packages->full) && !empty($current_update->packages->full)) {
                         $core_package = $current_update->packages->full;
+                    }
                     
                     $download = $upgrader->download_package($core_package);
-                    if (is_wp_error($download))
+                    if (is_wp_error($download)) {
                         return array(
                             'error' => $this->cmsc_get_error($download)
                         );
-                    
+                    }
+		    
                     $working_dir = $upgrader->unpack_package($download);
-                    if (is_wp_error($working_dir))
+                    if (is_wp_error($working_dir)) {
                         return array(
                             'error' => $this->cmsc_get_error($working_dir)
                         );
-                    
+                    }
+		    
                     if (!$wp_filesystem->copy($working_dir . '/wordpress/wp-admin/includes/update-core.php', $wp_dir . 'wp-admin/includes/update-core.php', true)) {
                         $wp_filesystem->delete($working_dir, true);
+			
                         return array(
                             'error' => 'Unable to move update files.'
                         );
@@ -349,17 +416,18 @@ class CMSC_Installer extends CMSC_Core
                     $wp_filesystem->chmod($wp_dir . 'wp-admin/includes/update-core.php', FS_CHMOD_FILE);
                     
                     require(ABSPATH . 'wp-admin/includes/update-core.php');
-                    
-                    
+
                     $update_core = update_core($working_dir, $wp_dir);
                     ob_end_clean();
                     
                     $this->cmsc_maintenance_mode(false);
-                    if (is_wp_error($update_core))
+                    if (is_wp_error($update_core)) {
                         return array(
                             'error' => $this->cmsc_get_error($update_core)
                         );
+		    }	
                     ob_end_flush();
+		    
                     return array(
                         'upgraded' => 'updated'
                     );
@@ -378,29 +446,31 @@ class CMSC_Installer extends CMSC_Core
     
     function upgrade_plugins($plugins = false)
     {
-        if (!$plugins || empty($plugins))
+        if (!$plugins || empty($plugins)) {
             return array(
-                'error' => 'No plugin files for upgrade.'
+                'error' => 'No plugin files for upgrade.',
             );
+        }
 			
 		$current = $this->cmsc_get_transient('update_plugins');
 		$versions = array();
-		if(!empty($current)){
-			foreach($plugins as $plugin => $data){
-				if(isset($current->checked[$plugin])){
-					$versions[$current->checked[$plugin]] = $plugin;
-				}
-                if ( !isset( $current->response[ $plugin ] ) ) {
+        if (!empty($current)) {
+            foreach ($plugins as $plugin => $data) {
+                if (isset($current->checked[$plugin])) {
+                    $versions[$current->checked[$plugin]] = $plugin;
+                }
+                if (!isset($current->response[$plugin])) {
                     unset($plugins[$plugin]);
-                }				
-			}
-		}
+                }
+            }
+        }
         $return = array();
         if (class_exists('Plugin_Upgrader') && class_exists('Bulk_Plugin_Upgrader_Skin')) {
             $upgrader = new Plugin_Upgrader(new Bulk_Plugin_Upgrader_Skin(compact('nonce', 'url')));
             $result   = $upgrader->bulk_upgrade(array_keys($plugins));
-			if (!function_exists('wp_update_plugins'))
-                include_once(ABSPATH . 'wp-includes/update.php');
+            if (!function_exists('wp_update_plugins')) {
+                include_once ABSPATH.'wp-includes/update.php';
+            }
             
             @wp_update_plugins();
 			$current = $this->cmsc_get_transient('update_plugins');
@@ -421,12 +491,14 @@ class CMSC_Installer extends CMSC_Core
                 return array(
                     'upgraded' => $return
                 );
-            } else
+            } else {
                 return array(
                     'error' => 'Upgrade failed.'
                 );
+	    }	
         } else {
             ob_end_clean();
+	    
             return array(
                 'error' => 'WordPress update required first.'
             );
@@ -435,10 +507,11 @@ class CMSC_Installer extends CMSC_Core
     
     function upgrade_themes($themes = false)
     {
-        if (!$themes || empty($themes))
+        if (!$themes || empty($themes)) {
             return array(
-                'error' => 'No theme files for upgrade.'
+                'error' => 'No theme files for upgrade.',
             );
+        }
 		
 		$current = $this->cmsc_get_transient('update_themes');
 		$versions = array();
@@ -453,8 +526,9 @@ class CMSC_Installer extends CMSC_Core
 			$upgrader = new Theme_Upgrader(new Bulk_Theme_Upgrader_Skin(compact('title', 'nonce', 'url', 'theme')));
             $result = $upgrader->bulk_upgrade($themes);
 			
-			if (!function_exists('wp_update_themes'))
-                include_once(ABSPATH . 'wp-includes/update.php');
+            if (!function_exists('wp_update_themes')) {
+                include_once ABSPATH.'wp-includes/update.php';
+            }
             
             @wp_update_themes();
 			$current = $this->cmsc_get_transient('update_themes');
@@ -491,124 +565,136 @@ class CMSC_Installer extends CMSC_Core
     {
 		global $cmsc_plugin_url;
 		
-        if (!class_exists('WP_Upgrader'))
-            include_once(ABSPATH . 'wp-admin/includes/class-wp-upgrader.php');
-        
-        if (!$premium || empty($premium))
+        if (!class_exists('WP_Upgrader')) {
+            include_once ABSPATH.'wp-admin/includes/class-wp-upgrader.php';
+        }
+
+        if (!$premium || empty($premium)) {
             return array(
-                'error' => 'No premium files for upgrade.'
+                'error' => 'No premium files for upgrade.',
             );
+        }
         
-        $upgrader = false;
-        $pr_update = array();
-        $themes = array();
-        $plugins = array();
-        $result = array();
+        $upgrader       = false;
+        $pr_update      = array();
+        $themes         = array();
+        $plugins        = array();
+        $result         = array();
         $premium_update = array();
-		$premium_update = apply_filters('cmsc_premium_perform_update', $premium_update);
-		if (!empty($premium_update)) {
+        $premium_update = apply_filters('mwp_premium_perform_update', $premium_update);
+        if (!empty($premium_update)) {
+            foreach ($premium as $pr) {
+                foreach ($premium_update as $key => $update) {
+                    $update = array_change_key_case($update, CASE_LOWER);
+                    if ($update['name'] == $pr['name']) {
+                        // prepare bulk updates for premiums that use WordPress upgrader
+                        if (isset($update['type'])) {
+                            if ($update['type'] == 'plugin') {
+                                if (isset($update['slug']) && !empty($update['slug'])) {
+                                    $plugins[$update['slug']] = $update;
+                                }
+                            }
+
+                            if ($update['type'] == 'theme') {
+                                if (isset($update['template']) && !empty($update['template'])) {
+                                    $themes[$update['template']] = $update;
+                                }
+                            }
+                        }
+                    } else {
+                        unset($premium_update[$key]);
+                    }
+                }
+            }
 			
-			foreach ($premium as $pr) {
-				foreach ($premium_update as $key => $update) {
-					$update = array_change_key_case($update, CASE_LOWER);
-					if ($update['name'] == $pr['name']) {
-						
-						// prepare bulk updates for premiums that use WordPress upgrader
-						if(isset($update['type'])){
-							if($update['type'] == 'plugin'){
-								if(isset($update['slug']) && !empty($update['slug']))
-									$plugins[$update['slug']] = $update;
-							}
-							
-							if($update['type'] == 'theme'){
-								if(isset($update['template']) && !empty($update['template']))
-									$themes[$update['template']] = $update;
-							}
-						}
-					} else {
-						unset($premium_update[$key]);
-					}
-				}
-			}
+            // try default wordpress upgrader
+            if (!empty($plugins)) {
+                $updateplugins = $this->upgrade_plugins(array_values($plugins));
+                if (!empty($updateplugins) && isset($updateplugins['upgraded'])) {
+                    foreach ($premium_update as $key => $update) {
+                        $update = array_change_key_case($update, CASE_LOWER);
+                        foreach ($updateplugins['upgraded'] as $slug => $upgrade) {
+                            if (isset($update['slug']) && $update['slug'] == $slug) {
+                                if ($upgrade == 1) {
+                                    unset($premium_update[$key]);
+                                }
+
+                                $pr_update['plugins']['upgraded'][md5($update['name'])] = $upgrade;
+                            }
+                        }
+                    }
+                }
+            }
 			
-			// try default wordpress upgrader
-			if(!empty($plugins)){
-				$updateplugins = $this->upgrade_plugins(array_values($plugins));
-				if(!empty($updateplugins) && isset($updateplugins['upgraded'])){
-					foreach ($premium_update as $key => $update) {
-						$update = array_change_key_case($update, CASE_LOWER);
-						foreach($updateplugins['upgraded'] as $slug => $upgrade){
-							if( isset($update['slug']) && $update['slug'] == $slug){
-								if( $upgrade == 1 )
-									unset($premium_update[$key]);
-								
-								$pr_update['plugins']['upgraded'][md5($update['name'])] = $upgrade;
-							}
-						}
-					}
-				}
-			}
+//			if(!empty($themes)){
+//				$updatethemes = $this->upgrade_themes(array_keys($themes));
+//				if(!empty($updatethemes) && isset($updatethemes['upgraded'])){
+//					foreach ($premium_update as $key => $update) {
+//						$update = array_change_key_case($update, CASE_LOWER);
+//						foreach($updatethemes['upgraded'] as $template => $upgrade){
+//							if( isset($update['template']) && $update['template'] == $template) {
+//								if( $upgrade == 1 )
+//									unset($premium_update[$key]);
+//
+//								$pr_update['themes']['upgraded'][md5($update['name'])] = $upgrade;
+//							}
+//						}
+//					}
+//				}
+//			}
 			
-			if(!empty($themes)){
-				$updatethemes = $this->upgrade_themes(array_keys($themes));
-				if(!empty($updatethemes) && isset($updatethemes['upgraded'])){
-					foreach ($premium_update as $key => $update) {
-						$update = array_change_key_case($update, CASE_LOWER);
-						foreach($updatethemes['upgraded'] as $template => $upgrade){
-							if( isset($update['template']) && $update['template'] == $template) {
-								if( $upgrade == 1 )
-									unset($premium_update[$key]);
-								
-								$pr_update['themes']['upgraded'][md5($update['name'])] = $upgrade;
-							}
-						}
-					}
-				}
-			}
-			
-			//try direct install with overwrite
-			if(!empty($premium_update)){
-				foreach ($premium_update as $update) {
-					$update = array_change_key_case($update, CASE_LOWER);
-					$update_result = false;
-					if (isset($update['url'])) {
-						if (defined('WP_INSTALLING') && file_exists(ABSPATH . '.maintenance'))
-							$pr_update[$update['type'] . 's']['upgraded'][md5($update['name'])] = 'Site under maintanace.';
-						
-						$upgrader_skin = new WP_Upgrader_Skin();
-						$upgrader_skin->done_header = true;
-						$upgrader = new WP_Upgrader();
-						@$update_result = $upgrader->run(array(
-							'package' => $update['url'],
-							'destination' => isset($update['type']) && $update['type'] == 'theme' ? WP_CONTENT_DIR . '/themes' : WP_PLUGIN_DIR,
-							'clear_destination' => true,
-							'clear_working' => true,
-							'is_multi' => true,
-							'hook_extra' => array()
-						));
-						$update_result = !$update_result || is_wp_error($update_result) ? $this->cmsc_get_error($update_result) : 1;
-						
-					} else if (isset($update['callback'])) {
-						if (is_array($update['callback'])) {
-							$update_result = call_user_func(array( $update['callback'][0], $update['callback'][1] ));
-						} else if (is_string($update['callback'])) {
-							$update_result = call_user_func($update['callback']);
-						} else {
-							$update_result = 'Upgrade function "' . $update['callback'] . '" does not exists.';
-						}
-						
-						$update_result = $update_result !== true ? $this->cmsc_get_error($update_result) : 1;
-					} else
-						$update_result = 'Bad update params.';
-					
-					$pr_update[$update['type'] . 's']['upgraded'][md5($update['name'])] = $update_result;
-				}			
-			}
-			return $pr_update;
+            //try direct install with overwrite
+            if (!empty($premium_update)) {
+                foreach ($premium_update as $update) {
+                    $update        = array_change_key_case($update, CASE_LOWER);
+                    $update_result = false;
+                    if (isset($update['url'])) {
+                        if (defined('WP_INSTALLING') && file_exists(ABSPATH.'.maintenance')) {
+                            $pr_update[$update['type'].'s']['upgraded'][md5($update['name'])] = 'Site under maintanace.';
+                        }
+
+                        $upgrader_skin              = new WP_Upgrader_Skin();
+                        $upgrader_skin->done_header = true;
+                        $upgrader                   = new WP_Upgrader();
+                        @$update_result = $upgrader->run(
+                            array(
+                                'package'           => $update['url'],
+                                'destination'       => isset($update['type']) && $update['type'] == 'theme' ? WP_CONTENT_DIR.'/themes' : WP_PLUGIN_DIR,
+                                'clear_destination' => true,
+                                'clear_working'     => true,
+                                'is_multi'          => true,
+                                'hook_extra'        => array(),
+                            )
+                        );
+                        $update_result = !$update_result || is_wp_error($update_result) ? $this->cmsc_get_error($update_result) : 1;
+                    } else {
+                        if (isset($update['callback'])) {
+                            if (is_array($update['callback'])) {
+                                $update_result = call_user_func(array($update['callback'][0], $update['callback'][1]));
+                            } else {
+                                if (is_string($update['callback'])) {
+                                    $update_result = call_user_func($update['callback']);
+                                } else {
+                                    $update_result = 'Upgrade function "'.$update['callback'].'" does not exists.';
+                                }
+                            }
+
+                            $update_result = $update_result !== true ? $this->cmsc_get_error($update_result) : 1;
+                        } else {
+                            $update_result = 'Bad update params.';
+                        }
+                    }
+
+                    $pr_update[$update['type'].'s']['upgraded'][md5($update['name'])] = $update_result;
+                }
+            }
+
+            return $pr_update;
         } else {
             foreach ($premium as $pr) {
-                $result[$pr['type'] . 's']['upgraded'][md5($pr['name'])] = 'This premium update is not registered.';
+                $result[$pr['type'].'s']['upgraded'][md5($pr['name'])] = 'This premium update is not registered.';
             }
+
             return $result;
         }
     }
@@ -619,15 +705,17 @@ class CMSC_Installer extends CMSC_Core
 		
         $upgradable_plugins = array();
         if (!empty($current->response)) {
-            if (!function_exists('get_plugin_data'))
-                include_once ABSPATH . 'wp-admin/includes/plugin.php';
+            if (!function_exists('get_plugin_data')) {
+                include_once ABSPATH.'wp-admin/includes/plugin.php';
+            }
             foreach ($current->response as $plugin_path => $plugin_data) {
                 if ($plugin_path == 'cmscommander/init.php' || $plugin_path == 'cms-commander-client/init.php')
                     continue;
                 
                 $data = get_plugin_data(WP_PLUGIN_DIR . '/' . $plugin_path);               
-				if(isset($data['Name']) && in_array($data['Name'], $filter))
-					continue;
+                if (isset($data['Name']) && in_array($data['Name'], $filter)) {
+                    continue;
+                }
 				
                 if (strlen($data['Name']) > 0 && strlen($data['Version']) > 0) {
                     $current->response[$plugin_path]->name        = $data['Name'];
@@ -651,11 +739,13 @@ class CMSC_Installer extends CMSC_Core
 	        $current = $this->cmsc_get_transient('update_themes');
 	        if (!empty($current->response)) {
 				foreach ((array) $all_themes as $theme_template => $theme_data) {
-					if(isset($theme_data->{'Parent Theme'}) && !empty($theme_data->{'Parent Theme'}))
-						continue;
-					
-					if(isset($theme_data->Name) && in_array($theme_data->Name, $filter))
-						continue;
+				    if (!empty($theme_data['Parent Theme'])) {
+					continue;
+				    }
+
+				    if (isset($theme_data->Name) && in_array($theme_data->Name, $filter)) {
+					continue;
+				    }
 						
 					foreach ($current->response as $current_themes => $theme) {
 	                    if ($theme_data->Template == $current_themes) {
@@ -671,16 +761,19 @@ class CMSC_Installer extends CMSC_Core
 	        }
         }else{	
 			$all_themes     = get_themes();
+			
 			$upgrade_themes = array();
 			
 			$current = $this->cmsc_get_transient('update_themes');
 			if (!empty($current->response)) {
 				foreach ((array) $all_themes as $theme_template => $theme_data) {
-					if(isset($theme_data['Parent Theme']) && !empty($theme_data['Parent Theme']))
+					    if (isset($theme_data['Parent Theme']) && !empty($theme_data['Parent Theme'])) {
 						continue;
-					
-					if(isset($theme_data['Name']) && in_array($theme_data['Name'], $filter))
+					    }
+
+					    if (isset($theme_data['Name']) && in_array($theme_data['Name'], $filter)) {
 						continue;
+					    }
 						
 					foreach ($current->response as $current_themes => $theme) {
 						if ($theme_data['Template'] == $current_themes) {
@@ -701,8 +794,9 @@ class CMSC_Installer extends CMSC_Core
     
     function get($args)
     {
-        if (empty($args))
+        if (empty($args)) {
             return false;
+        }
         
         //Args: $items('plugins,'themes'), $type (active || inactive), $search(name string)
         
@@ -719,11 +813,14 @@ class CMSC_Installer extends CMSC_Core
     
     function get_plugins($args)
     {
-        if (empty($args))
+        if (empty($args)) {
             return false;
+        }
         
         extract($args);
-        
+        $search = $args['search'];
+        $type   = trim((string) $args['type']);
+	
         if (!function_exists('get_plugins')) {
             include_once(ABSPATH . 'wp-admin/includes/plugin.php');
         }
@@ -890,6 +987,7 @@ class CMSC_Installer extends CMSC_Core
         } elseif ($type == 'themes') {
             $return['themes'] = $this->edit_themes($args);
         }
+	
         return $return;
     }
     

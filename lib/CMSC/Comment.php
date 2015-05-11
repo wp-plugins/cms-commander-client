@@ -21,24 +21,20 @@ class CMSC_Comment extends CMSC_Core
     
     function change_status($args)
     {
+        $comment_id = $args['comment_id'];
+        $status     = $args['status'];
 
-    	global $wpdb;
-    	$comment_id = $args['comment_id'];
-    	$status = $args['status']; 
-    	
-       	if ( 'approve' == $status )
-			$status_sql = '1';
-		elseif ( 'unapprove' == $status )
-			$status_sql = '0';
-		elseif ( 'spam' == $status )
-			$status_sql =  'spam';
-		elseif ( 'trash' == $status )
-			$status_sql =  'trash';
-		$sql = "update ".$wpdb->prefix."comments set comment_approved = '%s' where comment_ID = '%s'";
-		$success = $wpdb->query($wpdb->prepare($sql, $status_sql, $comment_id));
-				
-				
-        return $success;
+        if ('approve' == $status) {
+            wp_set_comment_status($comment_id, 'approve');
+        } elseif ('unapprove' == $status) {
+            wp_set_comment_status($comment_id, 'hold');
+        } elseif ('spam' == $status) {
+            wp_set_comment_status($comment_id, 'spam');
+        } elseif ('trash' == $status) {
+            wp_set_comment_status($comment_id, 'trash');
+        }
+
+        return true;
     }
 	
 	function get_comments($args){
@@ -141,58 +137,49 @@ class CMSC_Comment extends CMSC_Core
 	}
 	
 	function action_comment($args){
-		global $wpdb;
-		extract($args);
-		if($docomaction == 'approve'){
-			$docomaction = '1';
-		}else if($docomaction == 'unapprove' || $docomaction == 'untrash' || $docomaction == 'unspam'){
-			$docomaction = '0';
-		}
-		
-		if(!empty($comment_id)){
-			if($docomaction == 'delete'){
-				$update_query = "DELETE FROM $wpdb->comments WHERE comment_ID = ".$comment_id;
-				$delete_query = "DELETE FROM $wpdb->commentmeta WHERE comment_id = ".$comment_id;
-				$wpdb->query($delete_query);
-			}else{
-				$update_query = "UPDATE $wpdb->comments SET comment_approved = '".$docomaction."' WHERE comment_ID = ".$comment_id;
-			}
-			$wpdb->query($update_query);
-		
-			return 'Comment updated.';
-		}else{
-			return 'No ID...';
-		}
+        $docomaction = $args['docomaction'];
+        $comment_id  = $args['comment_id'];
+
+        if (!empty($comment_id) && is_numeric($comment_id)) {
+            if ($docomaction == 'delete') {
+                wp_delete_comment($comment_id, true);
+                delete_comment_meta($comment_id);
+            } elseif ($docomaction == 'unapprove' || $docomaction == 'untrash' || $docomaction == 'unspam') {
+                wp_set_comment_status($comment_id, 'hold');
+            } elseif ($docomaction == 'approve') {
+                wp_set_comment_status($comment_id, 'approve');
+            } elseif ($docomaction == 'spam') {
+                wp_set_comment_status($comment_id, 'spam');
+            } elseif ($docomaction == 'trash') {
+                wp_set_comment_status($comment_id, 'trash');
+            }
+
+            return 'Comment updated.';
+        } else {
+            return 'No ID...';
+        }
 	}
 	
 	function bulk_action_comments($args){
-		global $wpdb;
-		extract($args);
-		
-		if($docomaction=='delete'){
-			$update_query_intro = "DELETE FROM $wpdb->comments WHERE comment_ID = ";
-		}else{
-			if($docomaction=='unapprove' || $docomaction == 'untrash' || $docomaction == 'unspam'){
-				$docomaction = '0';
-			}else if($docomaction == 'approve'){
-				$docomaction = '1';
-			}
-			$update_query_intro = "UPDATE $wpdb->comments SET comment_approved = '".$docomaction."' WHERE comment_ID = ";
-		}
-		foreach($args as $key=>$val){
-			
-			if(!empty($val) && is_numeric($val))
-			{
-				if($docomaction=='delete'){
-					$delete_query = "DELETE FROM $wpdb->commentmeta WHERE comment_id = ".$val;
-					$wpdb->query($delete_query);
-				}
-				$update_query = $update_query_intro.$val;
-				
-				$wpdb->query($update_query);
-			}
-		}
-		return "comments updated";
+        $docomaction = $args['docomaction'];
+
+        foreach ($args as $val) {
+            if (!empty($val) && is_numeric($val)) {
+                if ($docomaction == 'delete') {
+                    wp_delete_comment($val, true);
+                } elseif ($docomaction == 'unapprove' || $docomaction == 'untrash' || $docomaction == 'unspam') {
+                    wp_set_comment_status($val, 'hold');
+                } elseif ($docomaction == 'approve') {
+                    wp_set_comment_status($val, 'approve');
+                } elseif ($docomaction == 'spam') {
+                    wp_set_comment_status($val, 'spam');
+                } elseif ($docomaction == 'trash') {
+                    wp_set_comment_status($val, 'trash');
+                }
+            }
+        }
+
+        return "comments updated";
 	}
 	
 	function reply_comment($args){

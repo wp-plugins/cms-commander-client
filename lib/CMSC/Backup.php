@@ -13,11 +13,6 @@ if(basename($_SERVER['SCRIPT_FILENAME']) == "backup.class.php"):
     echo "Sorry but you cannot browse this file directly!";
     exit;
 endif;
-define('CMSC_BACKUP_DIR', WP_CONTENT_DIR . '/cmscommander/backups');
-define('CMSC_DB_DIR', CMSC_BACKUP_DIR . '/cmsc_db');
-
-//set_include_path(get_include_path() . PATH_SEPARATOR . dirname(__FILE__).'/lib/PHPSecLib');
-//require_once ('Net/SFTP.php');
 
 $zip_errors = array(
     'No error',
@@ -80,31 +75,25 @@ class CMSC_Backup extends CMSC_Core {
     
     /**
      * Initializes site_name, statuses, and tasks attributes.
-     * 
-     * @return	void
      */
     function __construct() {
         parent::__construct();
-        $this->site_name = str_replace(array(
-            "_",
-            "/",
-	    	"~"
-        ), array(
-            "",
-            "-",
-	    	"-"
-        ), rtrim($this->remove_http(get_bloginfo('url')), "/"));
+        $this->site_name = str_replace(array("_", "/", "~", ":"), array("", "-", "-", "-"), rtrim($this->remove_http(get_bloginfo('url')), "/"));
         $this->statuses  = array(
-            'db_dump' => 1,
-            'db_zip' => 2,
-            'files_zip' => 3,
-            's3' => 4,
-            'dropbox' => 5,
-            'ftp' => 6,
-            'email' => 7,
-        	'google_drive' => 8,
-            'finished' => 100
+            'db_dump'      => 1,
+            'db_zip'       => 2,
+            'files_zip'    => 3,
+            's3'           => 4,
+            'dropbox'      => 5,
+            'ftp'          => 6,
+            'email'        => 7,
+            'google_drive' => 8,
+            'sftp'         => 9,
+            'finished'     => 100,
         );
+
+        $this->w3tc_flush();
+		
         $this->tasks = get_option('cmsc_backup_tasks');
     }
     
@@ -114,31 +103,32 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	array	an array with two keys for execution time and memory limit (0 - if not changed, 1 - if succesfully)
      */
     function set_memory() {   		   		
-   		$changed = array('execution_time' => 0, 'memory_limit' => 0);
-   		
-   		@ignore_user_abort(true);
-   		$memory_limit = trim(ini_get('memory_limit'));    
-    	$last = strtolower(substr($memory_limit, -1));
-		
-	    if($last == 'g')       
-	        $memory_limit = ((int) $memory_limit)*1024;
-	    else if($last == 'm')      
-	        $memory_limit = (int) $memory_limit;
-	    if($last == 'k')
-	        $memory_limit = ((int) $memory_limit)/1024;         
-        
-   		if ( $memory_limit < 512 )  {    
-      		@ini_set('memory_limit', '512M');
-      		$changed['memory_limit'] = 1;
- 		}
- 		
-        if (((int) ini_get('max_execution_time') < 4000) && (ini_get('max_execution_time') !== '0')) {
-            @ini_set('max_execution_time', 4000);
-            @set_time_limit(4000);
+        $changed = array('execution_time' => 0, 'memory_limit' => 0);
+        ignore_user_abort(true);
+        $tryLimit = 384;
+
+        $limit = cmsc_format_memory_limit(ini_get('memory_limit'));
+
+        $matched = preg_match('/^(\d+) ([KMG]?B)$/', $limit, $match);
+
+        if ($matched
+            && (
+                ($match[2] === 'GB')
+                || ($match[2] === 'MB' && (int) $match[1] >= $tryLimit)
+            )
+        ) {
+            // Memory limits are satisfied.
+        } else {
+            ini_set('memory_limit', $tryLimit.'M');
+            $changed['memory_limit'] = 1;
+        }
+        if (!cmsc_is_safe_mode() && ((int) ini_get('max_execution_time') < 4000) && (ini_get('max_execution_time') !== '0')) {
+            ini_set('max_execution_time', 4000);
+            set_time_limit(4000);
             $changed['execution_time'] = 1;
-        }		
-     	
-     	return $changed;
+        }
+
+        return $changed;
   	}
    	
   	/**
@@ -174,8 +164,9 @@ class CMSC_Backup extends CMSC_Core {
 			
             //$before = $this->get_backup_settings();
             $before = $this->tasks;
-            if (!$before || empty($before))
+            if (!$before || empty($before)) {
                 $before = array();
+            }
             
             if (isset($args['remove'])) {
                 unset($before[$task_name]);
@@ -199,7 +190,7 @@ class CMSC_Backup extends CMSC_Core {
                 if (is_array($error)) {
                     $before[$task_name]['task_results'][count($before[$task_name]['task_results']) - 1]['error'] = $error['error'];
                 } else {
-                    $before[$task_name]['task_results'][count($before[$task_name]['task_results'])]['error'] = $error;
+                    $before[$task_name]['task_results'][count($before[$task_name]['task_results']) - 1]['error'] = $error;
                 }
             }
             
@@ -213,7 +204,8 @@ class CMSC_Backup extends CMSC_Core {
             $this->update_tasks($before);
 
             if ($task_name == 'Backup Now') {
-            	$result          = $this->backup($args, $task_name);
+                $resultUuid      = !empty($params['resultUuid']) ? $params['resultUuid'] : false;			
+            	$result          = $this->backup($args, $task_name, $resultUuid);
                 $backup_settings = $this->tasks;
                 
                 if (is_array($result) && array_key_exists('error', $result)) {
@@ -364,6 +356,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return mixed										array with backup statistics if successful, array with error message if not
      */
     function task_now($task_name, $google_drive_token = false, $resultUuid = false) {
+	
 		if ($google_drive_token) {
 			$this->tasks[$task_name]['task_args']['account_info']['cmsc_google_drive']['google_drive_token'] = $google_drive_token;
 		}
@@ -391,6 +384,7 @@ class CMSC_Backup extends CMSC_Core {
 				'args' => $settings[$task_name]['task_args'],
 				'error' => $result
 			));
+			
 			return $result;
 		} else {
 			return $this->get_backup_stats();
@@ -411,8 +405,10 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|array								false if $args are missing, array with error if error has occured, ture if is successful
      */
     function backup($args, $task_name = false, $resultUuid = false) {
-        if (!$args || empty($args))
+	
+        if (!$args || empty($args)) {
             return false;
+        }
         
         extract($args); //extract settings
         
@@ -424,6 +420,7 @@ class CMSC_Backup extends CMSC_Core {
 			}	            
 			if (!$found) {
 				$error_message = 'Remote destination is not supported, please update your client plugin.';
+				
 				return array(
 					'error' => $error_message
 				);
@@ -437,16 +434,18 @@ class CMSC_Backup extends CMSC_Core {
         $removed = $this->remove_old_backups($task_name);
         if (is_array($removed) && isset($removed['error'])) {
         	$error_message = $removed['error'];
+			
         	return $removed;
         }
         
         $new_file_path = CMSC_BACKUP_DIR;
         
         if (!file_exists($new_file_path)) {
-            if (!mkdir($new_file_path, 0755, true))
+           if (!mkdir($new_file_path, 0755, true)) {
                 return array(
-                    'error' => 'Permission denied, make sure you have write permissions to the wp-content folder.'
-				);
+                    'error' => 'Permission denied, make sure you have write permissions to the wp-content folder.',
+                );
+            }
         }
         
         @file_put_contents($new_file_path . '/index.php', ''); //safe
@@ -586,6 +585,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|array						true if backup is successful, or an array with error message if is failed
      */
     function backup_full($task_name, $backup_file, $exclude = array(), $include = array()) {
+	
     	$this->update_status($task_name, $this->statuses['db_dump']);
         $db_result = $this->backup_db();
         
@@ -619,6 +619,7 @@ class CMSC_Backup extends CMSC_Core {
 				$pclzip_db_result = $this->pclzip_backup_db($task_name, $backup_file);
 				if (!$pclzip_db_result) {
 					@unlink(CMSC_BACKUP_DIR.'/cmsc_db/index.php');
+					@unlink(CMSC_BACKUP_DIR.'/mwp_db/info.json');
 					@unlink($db_result);
 					@rmdir(CMSC_DB_DIR);
 					 
@@ -634,6 +635,7 @@ class CMSC_Backup extends CMSC_Core {
         }
         
         @unlink(CMSC_BACKUP_DIR.'/cmsc_db/index.php');
+		@unlink(CMSC_BACKUP_DIR.'/mwp_db/info.json');
         @unlink($db_result);
         @rmdir(CMSC_DB_DIR);
         
@@ -660,7 +662,11 @@ class CMSC_Backup extends CMSC_Core {
         $this->update_status($task_name, $this->statuses['db_zip'], true);
         $this->update_status($task_name, $this->statuses['files_zip']);
         	
-        $zip_result = $this->zip_backup($task_name, $backup_file, $exclude, $include);
+        //if (function_exists('proc_open') && $this->zipExists()) {
+            $zip_result = $this->zip_backup($task_name, $backup_file, $exclude, $include);
+        //} else {
+        //    $zip_result = false;
+       // }
         
         if (isset($zip_result['error'])) {
         	return $zip_result;
@@ -683,6 +689,7 @@ class CMSC_Backup extends CMSC_Core {
         			 
         			if (!$pclzip_result) {
         				@unlink($backup_file);
+						
         				return array(
         					'error' => 'Failed to zip files. pclZip error (' . $archive->error_code . '): .' . $archive->error_string
         				);
@@ -695,6 +702,7 @@ class CMSC_Backup extends CMSC_Core {
         $this->wpdb_reconnect();
         
         $this->update_status($task_name, $this->statuses['files_zip'], true);
+		
         return true;
     }
     
@@ -1246,6 +1254,7 @@ class CMSC_Backup extends CMSC_Core {
         
         if (filesize($file) == 0 || !is_file($file)) {
             @unlink($file);
+			
             return array(
                 'error' => 'Database backup failed. Try to enable MySQL dump on your server.'
             );
@@ -1340,9 +1349,16 @@ class CMSC_Backup extends CMSC_Core {
                     );
                 }
             } elseif (isset($task['task_results'][$result_id]['google_drive'])) {
-                $google_drive_file   = $task['task_results'][$result_id]['google_drive'];
+                if (is_array($task['task_results'][$result_id]['google_drive'])) {
+                    $googleDriveFile   = $task['task_results'][$result_id]['google_drive']['file'];
+                    $googleDriveFileId = $task['task_results'][$result_id]['google_drive']['file_id'];
+                } else {
+                    $googleDriveFile   = $task['task_results'][$result_id]['google_drive'];
+                    $googleDriveFileId = "";
+                }
                 $args                = $task['task_args']['account_info']['cmsc_google_drive'];
-                $args['backup_file'] = $google_drive_file;
+                $args['backup_file'] = $googleDriveFile;
+                $args['file_id']     = $googleDriveFileId;
                 $backup_file         = $this->get_google_drive_backup($args);
                 
                 if (is_array($backup_file) && isset($backup_file['error'])) {
@@ -1629,30 +1645,42 @@ class CMSC_Backup extends CMSC_Core {
      */ 
     function restore_db_php($file_name) {
         global $wpdb;
+
         $current_query = '';
         // Read in entire file
-        $lines         = file($file_name);
-        // Loop through each line
-        foreach ($lines as $line) {
+//        $lines = file($file_name);
+        $fp = @fopen($file_name, 'r');
+        if (!$fp) {
+            throw new Exception("Failed restoring database: could not open dump file ($file_name)");
+        }
+        while (!feof($fp)) {
+            $line = fgets($fp);
+
             // Skip it if it's a comment
-            if (substr($line, 0, 2) == '--' || $line == '')
+            if (substr($line, 0, 2) == '--' || $line == '') {
                 continue;
-            
+            }
+
             // Add this line to the current query
             $current_query .= $line;
             // If it has a semicolon at the end, it's the end of the query
             if (substr(trim($line), -1, 1) == ';') {
                 // Perform the query
-                $result = $wpdb->query($current_query);
-                if ($result === false)
-                    return false;
+                $trimmed = trim($current_query, " ;\n");
+                if (!empty($trimmed)) {
+                    $result = $wpdb->query($current_query);
+                    if ($result === false) {
+                        @fclose($fp);
+                        @unlink($file_name);
+                        throw new Exception("Error while restoring database on ($current_query) $wpdb->last_error");
+                    }
+                }
                 // Reset temp variable to empty
                 $current_query = '';
             }
         }
-        
+        @fclose($fp);
         @unlink($file_name);
-        return true;
     }
     
     /**
@@ -1681,6 +1709,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	bool	optimized successfully or not
      */
     function optimize_tables() {
+	
         global $wpdb;
         $query  = 'SHOW TABLE STATUS';
         $tables = $wpdb->get_results($query, ARRAY_A);
@@ -2285,6 +2314,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return 	bool|array		true is successful, array with error message if not
      */
     function dropbox_backup($args) {
+	
         try {
             $dropbox = cmsc_dropbox_oauth_factory($args['consumer_key'], $args['consumer_secret'], $args['oauth_token'], $args['oauth_token_secret']);
         } catch (Exception $e) {
@@ -2427,6 +2457,7 @@ class CMSC_Backup extends CMSC_Core {
 	 * @return 	bool|array		true is successful, array with error message if not
 	 */
     function amazons3_backup($args) {
+	
         if ($args['as3_site_folder'] == true) {
             $args['as3_directory'] .= '/'.$this->site_name;
         }
@@ -3038,6 +3069,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool|void			true if there are backups for deletion, void if not
      */
     function remove_old_backups($task_name) {
+	
         //Check for previous failed backups first
         $this->cleanup();
         
@@ -3127,6 +3159,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	bool			true if successful, false if not
      */
     function delete_backup($args) {
+	
         if (empty($args)) {
             return false;
         }
@@ -3206,6 +3239,7 @@ class CMSC_Backup extends CMSC_Core {
      * @return	array	array of deleted files
      */
     function cleanup() {
+	
         $tasks             = $this->tasks;
         $backup_folder     = WP_CONTENT_DIR . '/' . md5('cmsc-worker') . '/cmsc_backups/';
         $backup_folder_new = CMSC_BACKUP_DIR . '/';
@@ -3389,11 +3423,14 @@ class CMSC_Backup extends CMSC_Core {
             
             $tasks = $this->tasks;
             @file_put_contents(CMSC_BACKUP_DIR.'/cmsc_db/index.php', '');
-            if ($return == true && $del_host_file) {
+            if ($return === true && $del_host_file) {
                 @unlink($backup_file);
                 unset($tasks[$task_name]['task_results'][count($tasks[$task_name]['task_results']) - 1]['server']);
             }
             $this->update_tasks($tasks);
+            if (!isset($return['error'])) {
+                $return = $this->tasks[$task_name]['task_results'][$taskResultKey];
+            }	    
         } else {
             $return = array(
                 'error' => 'Backup file not found on your server. Please try again.'
@@ -3501,6 +3538,12 @@ class CMSC_Backup extends CMSC_Core {
     function wpdb_reconnect() {
     	global $wpdb;
     	
+        if (is_callable(array($wpdb, 'check_connection'))) {
+            $wpdb->check_connection();
+
+            return;
+        }		
+		
       	if(class_exists('wpdb') && function_exists('wp_set_wpdb_vars')){
       		@mysql_close($wpdb->dbh);
         	$wpdb = new wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST );

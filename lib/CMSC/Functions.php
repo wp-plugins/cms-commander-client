@@ -143,7 +143,26 @@ class CMSC_Functions extends CMSC_Core
     {
 		// return recent post drafts and comments, upgradeable plugins, core
 		$data = array();
+		
+		// PREMIUM UPDATES		
+		$premium_updates = array();
+		$upgrades        = apply_filters('mwp_premium_update_notification', $premium_updates);
+		if (!empty($upgrades)) {
+			$data['premium_updates'] = $upgrades;
+		}
+		
+		// REFRESH UPDATE TRANSIENTS
+		if (function_exists('w3tc_pgcache_flush') || function_exists('wp_cache_clear_cache')) {
+			$this->cmsc_delete_transient('update_core');
+			$this->cmsc_delete_transient('update_plugins');
+			$this->cmsc_delete_transient('update_themes');
+		}
+
+		wp_version_check();
+		wp_update_plugins();
+		wp_update_themes();      
        
+		// GET DRAFTS
 		$drafts = get_posts('post_status=draft&numberposts=4&orderby=modified&order=desc');
 		$savedrafts = array();
 		foreach ($drafts as $id => & $draft) {
@@ -175,7 +194,7 @@ class CMSC_Functions extends CMSC_Core
    		if(!function_exists('get_plugins')){
    			include_once(ABSPATH.'wp-admin/includes/plugin.php');
    		}		
-		
+
 		$all_plugins = get_plugins();
 		if(is_array($all_plugins) && !empty($all_plugins)){
 		
@@ -192,6 +211,7 @@ class CMSC_Functions extends CMSC_Core
 						$plugins[$br_i]['version'] = $plugin['Version'];
 						//$plugins[$br_i]['description'] = $plugin['Description'];					
 						$plugins[$br_i]['update'] = (array) $upgradeable_plugins[$path];
+						if(is_array($plugins[$br_i]['update']["sections"])) {unset($plugins[$br_i]['update']["sections"]);}
 					}				
 					$br_i++;
 				}
@@ -502,7 +522,7 @@ class CMSC_Functions extends CMSC_Core
 	}
 
 	function update_plugins($args) {
-	
+
 		if(empty($args['plugins']) && $args['updateall'] != 1) {
 			return array('error' => 'No plugin files to upgrade.');				
 		}
@@ -511,16 +531,24 @@ class CMSC_Functions extends CMSC_Core
 		
 		if(!empty($args['plugins'])) {
 			$plugin_files = $args['plugins'];
-		}		
+		}	
+
+		if(!empty($args['premium'])) {
+			$premium_upgrades = $args['premium'];
+		}				
 		
 		if(1 == $args['updateall']) {
+			$premium_upgrades = array();
 			$upgrade_plugins = $installer->get_upgradable_plugins();
 			
 			if(!empty($upgrade_plugins)){
 				$plugin_files = array();
 				foreach($upgrade_plugins as $plugin){				
-					if(isset($plugin->file))
+					if(isset($plugin->file)) {
 						$plugin_files[$plugin->file] = $plugin->old_version;
+					} else {
+						$premium_upgrades[md5($plugin->name)] = $plugin;
+					}	
 				}
 			} else {
 				return array('error' => 'No plugin files to upgrade found.');		
@@ -534,13 +562,30 @@ class CMSC_Functions extends CMSC_Core
 				}
 			}
 		}
+		
+		if(empty($premium_upgrades) && empty($plugin_files)) {
+			return array('error' => 'No plugin files to upgrade found. Updates already installed or all plugins set to ignore.');		
+		}		
 
 		if(!empty($plugin_files)) {
 			$upgrades = $installer->upgrade_plugins($plugin_files);
-		} else {
-			return array('error' => 'No plugin files to upgrade found. Updates already installed or plugins set to ignore.');		
-		}		
-	
+		}
+
+        if (!empty($premium_upgrades)) {
+            $premium_upgrades = $installer->upgrade_premium($premium_upgrades);
+            if (!empty($premium_upgrades)) {
+                if (!empty($upgrades)) {
+                    foreach ($upgrades as $key => $val) {
+                        if (isset($premium_upgrades[$key])) {
+                            $upgrades[$key] = array_merge_recursive($upgrades[$key], $premium_upgrades[$key]);
+                        }
+                    }
+                } else {
+                    $upgrades = $premium_upgrades;
+                }
+            }
+        }
+
 		return $upgrades;
     }
 	
@@ -596,6 +641,16 @@ class CMSC_Functions extends CMSC_Core
 			$data = get_post( $post, ARRAY_A );
 			$new_post = array();
 			$new_post['ID'] = (int) $post;	
+			
+			if(!empty($args['add']['content'])) {
+
+				if($args['add']['where'] == "beginning") {
+					$new_post['post_content'] = $args['add']['content'] . $data["post_content"];
+				} else {
+					$new_post['post_content'] =  $data["post_content"] . $args['add']['content'];
+				}
+
+			}			
 			
 			if(!empty($args['replace']['text'])) {
 				$data["post_content"] = str_replace($args['replace']['text'], $args['replace']['with'], $data["post_content"]);	

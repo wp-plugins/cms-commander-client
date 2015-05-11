@@ -25,38 +25,82 @@ class CMSC_Stats extends CMSC_Core
      * (functions to be called after a remote call from Master)
      **************************************************************/
     
+    public function get_site_statistics($stats, $options = array())
+    {
+        /** @var wpdb $wpdb */
+        global $wpdb;
+        $siteStatistics = array();
+        $prefix         = $wpdb->prefix;
+
+        if (!empty($options['users'])) {
+            $siteStatistics['users'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$prefix}users");
+        }
+
+        if (!empty($options['approvedComments'])) {
+            $siteStatistics['approvedComments'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$prefix}comments c INNER JOIN {$prefix}posts p ON c.comment_post_ID = p.ID WHERE comment_approved = '1' AND p.post_status = 'publish'");
+        }
+
+        if (!empty($options['activePlugins'])) {
+            $siteStatistics['activePlugins'] = count((array) get_option('active_plugins', array()));
+        }
+
+        if (!empty($options['publishedPosts'])) {
+            $siteStatistics['publishedPosts'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$prefix}posts WHERE post_type='post' AND post_status='publish'");
+        }
+
+        if (!empty($options['draftPosts'])) {
+            $siteStatistics['draftPosts'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$prefix}posts WHERE post_type='post' AND post_status='draft'");
+        }
+
+        if (!empty($options['publishedPages'])) {
+            $siteStatistics['publishedPages'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$prefix}posts WHERE post_type='page' AND post_status='publish'");
+        }
+
+        if (!empty($options['draftPages'])) {
+            $siteStatistics['draftPages'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$prefix}posts WHERE post_type='page' AND post_status='draft'");
+        }
+
+        $stats['site_statistics'] = $siteStatistics;
+
+        return $stats;
+    }    
+    
     function get_core_update($stats, $options = array())
     {
         global $wp_version;
-        
+        $current_transient = null;
         if (isset($options['core']) && $options['core']) {
-            $core = $this->cmsc_get_transient('update_core');
+            $locale = get_locale();
+            $core   = $this->cmsc_get_transient('update_core');
             if (isset($core->updates) && !empty($core->updates)) {
-                $current_transient = $core->updates[0];
-                if ($current_transient->response == "development" || version_compare($wp_version, $current_transient->current, '<')) {
+                foreach ($core->updates as $update) {
+                    if ($update->locale == $locale && strtolower($update->response) == "upgrade") {
+                        $current_transient = $update;
+                        break;
+                    }
+                }
+                //fallback to first
+                if (!$current_transient) {
+                    $current_transient = $core->updates[0];
+                }
+                if ($current_transient->response == "development" || version_compare($wp_version, $current_transient->current, '<') || $locale !== $current_transient->locale) {
                     $current_transient->current_version = $wp_version;
                     $stats['core_updates']              = $current_transient;
-                } else
+                } else {
                     $stats['core_updates'] = false;
-            } else
+                }
+            } else {
                 $stats['core_updates'] = false;
+            }
         }
-        
+
         return $stats;
     }
     
     function get_hit_counter($stats, $options = array())
     {
-        $cmsc_user_hits = get_option('user_hit_count');
-        if (is_array($cmsc_user_hits)) {
-            end($cmsc_user_hits);
-            $last_key_date = key($cmsc_user_hits);
-            $current_date  = date('Y-m-d');
-            if ($last_key_date != $current_date)
-                $this->set_hit_count(true);
-        }
         $stats['hit_counter'] = get_option('user_hit_count');
-        
+
         return $stats;
     }
     
@@ -198,44 +242,39 @@ class CMSC_Stats extends CMSC_Core
     
     function get_scheduled($stats, $options = array())
     {
-        $nposts = isset($options['numberposts']) ? (int) $options['numberposts'] : 20;
-        
-        if ($nposts) {
-            $scheduled       = get_posts('post_status=future&numberposts=' . $nposts . '&orderby=post_date&order=desc');
-            $scheduled_posts = array();
-            if (!empty($scheduled)) {
-                foreach ($scheduled as $id => $scheduled) {
-                    $recent                 = new stdClass();
-                    $recent->post_permalink = get_permalink($scheduled->ID);
-                    $recent->ID             = $scheduled->ID;
-					$recent->post_type      = $scheduled->post_type;
-                    $recent->post_date      = $scheduled->post_date;
-                    $recent->post_title     = $scheduled->post_title;
-                    $scheduled_posts[]      = $recent;
-                }
-            }
-            $scheduled           = get_pages('post_status=future&numberposts=' . $nposts . '&orderby=post_date&order=desc');
-            $recent_pages_drafts = array();
-            if (!empty($scheduled)) {
-                foreach ((array) $scheduled as $id => $scheduled) {
-                    $recent                 = new stdClass();
-                    $recent->post_permalink = get_permalink($scheduled->ID);
-                    $recent->post_type      = $scheduled->post_type;
-					$recent->ID             = $scheduled->ID;
-                    $recent->post_date      = $scheduled->post_date;
-                    $recent->post_title     = $scheduled->post_title;
-                    
-                    $scheduled_posts[] = $recent;
-                }
-            }
-            if (!empty($scheduled_posts)) {
-                usort($scheduled_posts, array(
-                    $this,
-                    'cmp_posts_worker'
-                ));
-                $stats['scheduled'] = array_slice($scheduled_posts, 0, $nposts);
-            }
+        $numberOfItems  = isset($options['numberposts']) ? (int) $options['numberposts'] : 20;
+        $scheduledItems = array();
+
+        if (!$numberOfItems) {
+            return $stats;
         }
+        $scheduledPosts = get_posts('post_status=future&numberposts='.$numberOfItems.'&orderby=post_date&order=desc');
+        foreach ($scheduledPosts as $id => $scheduledPost) {
+            $recentPost                 = new stdClass();
+            $recentPost->post_permalink = get_permalink($scheduledPost->ID);
+            $recentPost->ID             = $scheduledPost->ID;
+            $recentPost->post_date      = $scheduledPost->post_date;
+            $recentPost->post_type      = $scheduledPost->post_type;
+            $recentPost->post_title     = $scheduledPost->post_title;
+
+            $scheduledItems[] = $recentPost;
+        }
+        $scheduledPages = get_pages('post_status=future&numberposts='.$numberOfItems.'&orderby=post_date&order=desc');
+        foreach ((array) $scheduledPages as $id => $scheduledPage) {
+            $recentPage                 = new stdClass();
+            $recentPage->post_permalink = get_permalink($scheduledPage->ID);
+            $recentPage->ID             = $scheduledPage->ID;
+            $recentPage->post_type      = $scheduledPage->post_type;
+            $recentPage->post_date      = $scheduledPage->post_date;
+            $recentPage->post_title     = $scheduledPage->post_title;
+
+            $scheduledItems[] = $recentPage;
+        }
+        if (!empty($scheduledItems)) {
+            usort($scheduledItems, array($this, 'cmp_posts_worker'));
+            $stats['scheduled'] = array_slice($scheduledItems, 0, $numberOfItems);
+        }
+
         return $stats;
     }
     
@@ -258,18 +297,17 @@ class CMSC_Stats extends CMSC_Core
     
     function get_updates($stats, $options = array())
     {
-        $upgrades = false;
         $premium = array();
         if (isset($options['premium']) && $options['premium']) {
             $premium_updates = array();
-            $upgrades = apply_filters('cmsc_premium_update_notification', $premium_updates);
-			if (!empty($upgrades)) {
-				foreach( $upgrades as $data ){
-					if( isset($data['Name']) )
-						$premium[] = $data['Name'];
-				}
+            $upgrades        = apply_filters('mwp_premium_update_notification', $premium_updates);
+            if (!empty($upgrades)) {
+                foreach ($upgrades as $data) {
+                    if (isset($data['Name'])) {
+                        $premium[] = $data['Name'];
+                    }
+                }
                 $stats['premium_updates'] = $upgrades;
-                $upgrades                 = false;
             }
         }
         if (isset($options['themes']) && $options['themes']) {
@@ -277,7 +315,6 @@ class CMSC_Stats extends CMSC_Core
             $upgrades = $this->installer_instance->get_upgradable_themes( $premium );
             if (!empty($upgrades)) {
                 $stats['upgradable_themes'] = $upgrades;
-                $upgrades                   = false;
             }
         }
         
@@ -286,7 +323,6 @@ class CMSC_Stats extends CMSC_Core
             $upgrades = $this->installer_instance->get_upgradable_plugins( $premium );
             if (!empty($upgrades)) {
                 $stats['upgradable_plugins'] = $upgrades;
-                $upgrades                    = false;
             }
         }
         
@@ -295,57 +331,75 @@ class CMSC_Stats extends CMSC_Core
     
 	function get_errors($stats, $options = array())
     {
-		$period = isset($options['days']) ? (int) $options['days'] * 86400 : 86400;
-		$maxerrors = isset($options['max']) ? (int) $options['max'] : 20;
-        $errors = array();
+        $period     = isset($options['days']) ? (int) $options['days'] * 86400 : 86400;
+        $maxerrors  = isset($options['max']) ? (int) $options['max'] : 100;
+        $last_bytes = isset($options['last_bytes']) ? (int) $options['last_bytes'] : 20480; //20KB
+        $errors     = array();
         if (isset($options['get']) && $options['get'] == true) {
             if (function_exists('ini_get')) {
                 $logpath = ini_get('error_log');
                 if (!empty($logpath) && file_exists($logpath)) {
-					$logfile = @fopen($logpath, 'r');
-                    if ($logfile && filesize($logpath) > 0) {
-                        $maxlines = 1;
-                        $linesize = -4096;
-                        $lines    = array();
-                        $line     = true;
-                        while ($line !== false) {
-                            if( fseek($logfile, ($maxlines * $linesize), SEEK_END) !== -1){
-								$maxlines++;
-								if ($line) {
-									$line = fread($logfile, ($linesize * -1)) . $line;
-									
-									foreach ((array) preg_split("/(\r|\n|\r\n)/U", $line) as $l) {
-										preg_match('/\[(.*)\]/Ui', $l, $match);
-										if (!empty($match)) {
-											$key = str_replace($match[0], '', $l);
-											if(!isset($errors[$key])){
-												$errors[$key] = 1;
-											} else {
-												$errors[$key] = $errors[$key] + 1;
-											}
-											
-											if ((strtotime($match[1]) < ((int) time() - $period)) || count($errors) >= $maxerrors) {
-												$line = false;
-												break;
-											}
-										}
-									}
-								}
-							} else
-								break;
+                    $logfile    = @fopen($logpath, 'r');
+                    $filesize   = @filesize($logpath);
+                    $read_start = 0;
+                    if (is_resource($logfile) && $filesize > 0) {
+                        if ($filesize > $last_bytes) {
+                            $read_start = $filesize - $last_bytes;
+                        }
+                        fseek($logfile, $read_start, SEEK_SET);
+                        while (!feof($logfile)) {
+                            $line = fgets($logfile);
+                            preg_match('/\[(.*)\]/Ui', $line, $match);
+                            if (!empty($match) && (strtotime($match[1]) > ((int) time() - $period))) {
+                                $key = str_replace($match[0], '', $line);
+                                if (!isset($errors[$key])) {
+                                    $errors[$key] = 1;
+                                } else {
+                                    $errors[$key] = $errors[$key] + 1;
+                                }
+                                if (count($errors) >= $maxerrors) {
+                                    break;
+                                }
+                            }
                         }
                     }
-                    if (!empty($errors)){
-						$stats['errors'] = $errors;
-						$stats['logpath'] = $logpath;
-						$stats['logsize'] = @filesize($logpath);
-					}
+                    if (is_resource($logfile)) {
+                        fclose($logfile);
+                    }
+                    if (!empty($errors)) {
+                        $stats['errors']  = $errors;
+                        $stats['logpath'] = $logpath;
+                        $stats['logsize'] = $filesize;
+                    }
                 }
             }
         }
-		
+
         return $stats;
     }
+    
+    public function getUserList()
+    {
+        $filter = array(
+            'user_roles'      => array(
+                'administrator',
+            ),
+            'username'        => '',
+            'username_filter' => '',
+        );
+        $users  = $this->get_user_instance()->get_users($filter);
+
+        if (empty($users['users']) || !is_array($users['users'])) {
+            return array();
+        }
+
+        $userList = array();
+        foreach ($users['users'] as $user) {
+            $userList[] = $user['user_login'];
+        }
+
+        return $userList;
+    }    
     
     function pre_init_stats($params)
     {
@@ -357,27 +411,19 @@ class CMSC_Stats extends CMSC_Core
         $stats = $this->cmsc_parse_action_params('pre_init_stats', $params, $this);
         $num   = extract($params);
        
-        if (function_exists( 'w3tc_pgcache_flush' ) ||  function_exists( 'wp_cache_clear_cache' ) ) {
-					$this->mmb_delete_transient('update_core');
-					$this->mmb_delete_transient('update_plugins');					
-					$this->mmb_delete_transient('update_themes');										
-					@wp_version_check();
-					@wp_update_plugins();
-					@wp_update_themes();					
-		}  
-	   
-        if ($refresh == 'transient') {
-            $current = $this->cmsc_get_transient('update_core');
-            if (isset($current->last_checked) || get_option('cmsc_forcerefresh')) {
-				update_option('cmsc_forcerefresh', false);
-                if (time() - $current->last_checked > 7200) {
-                    @wp_version_check();
-                    @wp_update_plugins();
-                    @wp_update_themes();
-                }
+        if ($params['refresh'] == 'transient') {
+            if (function_exists('w3tc_pgcache_flush') || function_exists('wp_cache_clear_cache')) {
+                $this->mmb_delete_transient('update_core');
+                $this->mmb_delete_transient('update_plugins');
+                $this->mmb_delete_transient('update_themes');
             }
+
+            wp_version_check();
+            wp_update_plugins();
+            wp_update_themes();
         }
         
+	/** @var $wpdb wpdb */
         global $wpdb, $cmsc_wp_version, $cmsc_plugin_dir, $wp_version, $wp_local_package;
         
         $stats['worker_version']        = CMSC_WORKER_VERSION;
@@ -387,6 +433,9 @@ class CMSC_Stats extends CMSC_Core
         $stats['mysql_version']         = $wpdb->db_version();
         $stats['wp_multisite']          = $this->cmsc_multisite;
         $stats['network_install']       = $this->network_admin_install;
+        $stats['site_title']            = get_bloginfo('name');
+        $stats['site_tagline']          = get_bloginfo('description');
+        $stats['blog_public']           = get_option('blog_public');
         
         if ( !function_exists('get_filesystem_method') )
             include_once(ABSPATH . 'wp-admin/includes/file.php');
@@ -411,16 +460,20 @@ class CMSC_Stats extends CMSC_Core
 		$update_check = array();
         $num          = extract($params);
         if ($refresh == 'transient') {
-            $update_check = apply_filters('cmsc_premium_update_check', $update_check);
+            $update_check = apply_filters('mwp_premium_update_check', $update_check);
             if (!empty($update_check)) {
                 foreach ($update_check as $update) {
                     if (is_array($update['callback'])) {
-                        $update_result = call_user_func(array(
-                            $update['callback'][0],
-                            $update['callback'][1]
-                        ));
-                    } else if (is_string($update['callback'])) {
-                        $update_result = call_user_func($update['callback']);
+                        $update_result = call_user_func(
+                            array(
+                                $update['callback'][0],
+                                $update['callback'][1],
+                            )
+                        );
+                    } else {
+                        if (is_string($update['callback'])) {
+                            $update_result = call_user_func($update['callback']);
+                        }
                     }
                 }
             }
@@ -474,8 +527,7 @@ class CMSC_Stats extends CMSC_Core
             $commented_post      = get_post($comment->comment_post_ID);
             $comment->post_title = $commented_post->post_title;
         }
-        $stats['comments']['pending'] = $pending_comments;
-        
+        $stats['comments']['pending'] = $pending_comments;      
         
         $approved_comments = get_comments('status=approve&number=' . $num_approved_comments);
         foreach ($approved_comments as &$comment) {
@@ -532,126 +584,12 @@ class CMSC_Stats extends CMSC_Core
 		
 	   	return $active_db;
 
-	}	
-    
-    static function set_hit_count($fix_count = false)
-    {
-    	global $cmsc_core;
-    	$uptime_robot = array("74.86.158.106", "74.86.179.130", "74.86.179.131", "46.137.190.132", "122.248.234.23", "74.86.158.107"); //don't let uptime robot to affect visit count
-    	
-        if ($fix_count || (!is_admin() && !CMSC_Stats::is_bot() && !isset($_GET['doing_wp_cron']) && !in_array($_SERVER['REMOTE_ADDR'],$uptime_robot)) ) {
-        	
-            $date           = date('Y-m-d');
-            $user_hit_count = (array) get_option('user_hit_count');
-            if (!$user_hit_count) {
-                $user_hit_count[$date] = 1;
-                update_option('user_hit_count', $user_hit_count);
-            } else {
-                $dated_keys      = array_keys($user_hit_count);
-                $last_visit_date = $dated_keys[count($dated_keys) - 1];
-                
-                $days = intval((strtotime($date) - strtotime($last_visit_date)) / 60 / 60 / 24);
-                
-                if ($days > 1) {
-                    $date_to_add = date('Y-m-d', strtotime($last_visit_date));
-                    
-                    for ($i = 1; $i < $days; $i++) {
-                        if (count($user_hit_count) > 14) {
-                            $shifted = @array_shift($user_hit_count);
-                        }
-                        
-                        $next_key = strtotime('+1 day', strtotime($date_to_add));
-                        if ($next_key == $date) {
-                            break;
-                        } else {
-                            $user_hit_count[$next_key] = 0;
-                        }
-                    }
-                    
-                }
-                
-                if (!isset($user_hit_count[$date])) {
-                    $user_hit_count[$date] = 0;
-                }
-                if (!$fix_count)
-                    $user_hit_count[$date] = ((int) $user_hit_count[$date]) + 1;
-                
-                if (count($user_hit_count) > 14) {
-                    $shifted = @array_shift($user_hit_count);
-                }
-                
-                update_option('user_hit_count', $user_hit_count);
-                
-            }
-        }
-    }
+	}
     
     function get_hit_count()
     {
-        // Check if there are no hits on last key date
-        $cmsc_user_hits = get_option('user_hit_count');
-        if (is_array($cmsc_user_hits)) {
-            end($cmsc_user_hits);
-            $last_key_date = key($cmsc_user_hits);
-            $current_date  = date('Y-m-d');
-            if ($last_key_date != $curent_date)
-                $this->set_hit_count(true);
-        }
-        
         return get_option('user_hit_count');
     }
-    
-    static function is_bot()
-    {
-        $agent = $_SERVER['HTTP_USER_AGENT'];
-        
-        if ($agent == '')
-            return false;
-        
-        $bot_list = array(
-            "Teoma",
-            "alexa",
-            "froogle",
-            "Gigabot",
-            "inktomi",
-            "looksmart",
-            "URL_Spider_SQL",
-            "Firefly",
-            "NationalDirectory",
-            "Ask Jeeves",
-            "TECNOSEEK",
-            "InfoSeek",
-            "WebFindBot",
-            "girafabot",
-            "crawler",
-            "www.galaxy.com",
-            "Googlebot",
-            "Scooter",
-            "Slurp",
-            "msnbot",
-            "appie",
-            "FAST",
-            "WebBug",
-            "Spade",
-            "ZyBorg",
-            "rabaz",
-            "Baiduspider",
-            "Feedfetcher-Google",
-            "TechnoratiSnoop",
-            "Rankivabot",
-            "Mediapartners-Google",
-            "Sogou web spider",
-            "WebAlta Crawler",
-            "aolserver"
-        );
-        
-        foreach ($bot_list as $bot)
-            if (strpos($agent, $bot) !== false)
-                return true;
-        
-        return false;
-    }
-    
     
     function set_notifications($params)
     {
@@ -774,7 +712,6 @@ class CMSC_Stats extends CMSC_Core
         
     }
     
-    
     function cmp_posts_worker($a, $b)
     {
         return ($a->post_date < $b->post_date);
@@ -789,21 +726,6 @@ class CMSC_Stats extends CMSC_Core
         
         return $content;
     }
-    
-	public static function readd_alerts( $params = array() ){
-		if( empty($params) || !isset($params['alerts']))
-			return $params;
-			
-		if( !empty($params['alerts']) ){
-			update_option('cmsc_pageview_alerts', $params['alerts']);
-			unset($params['alerts']);
-		}
-		
-		return $params;
-	}
 }
 
-if( function_exists('add_filter') ){
-	add_filter( 'cmsc_website_add', 'CMSC_Stats::readd_alerts' );
-}
 ?>

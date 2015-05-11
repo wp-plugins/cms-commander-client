@@ -28,23 +28,25 @@ class CMSC_Updater
         $autoUpdateCore = get_option('cmsc_core_autoupdate');
 
         if ($autoUpdateCore === 'never') {
-            add_filter('allow_minor_auto_core_updates', '__return_false', 100);
-            add_filter('allow_major_auto_core_updates', '__return_false', 100);
+            add_filter('allow_minor_auto_core_updates', '__return_false', PHP_INT_MAX);
+            add_filter('allow_major_auto_core_updates', '__return_false', PHP_INT_MAX);
         } elseif ($autoUpdateCore === 'minor') {
-            add_filter('allow_minor_auto_core_updates', '__return_true', 100);
-            add_filter('allow_major_auto_core_updates', '__return_false', 100);
+            add_filter('allow_minor_auto_core_updates', '__return_true', PHP_INT_MAX);
+            add_filter('allow_major_auto_core_updates', '__return_false', PHP_INT_MAX);
         } elseif ($autoUpdateCore === 'major') {
-            add_filter('allow_minor_auto_core_updates', '__return_true', 100);
-            add_filter('allow_major_auto_core_updates', '__return_true', 100);
+            add_filter('allow_minor_auto_core_updates', '__return_true', PHP_INT_MAX);
+            add_filter('allow_major_auto_core_updates', '__return_true', PHP_INT_MAX);
         }
 
-        add_filter('auto_update_plugin', array($updater, 'updatePlugin'), 100, 2);
-        add_filter('auto_update_theme', array($updater, 'updateTheme'), 100, 2);
-        add_filter('auto_update_translation', array($updater, 'updateTranslation'), 100, 1);
+        add_filter('auto_update_plugin', array($updater, 'updatePlugin'), PHP_INT_MAX, 2);
+        add_filter('auto_update_theme', array($updater, 'updateTheme'), PHP_INT_MAX, 2);
+        add_filter('auto_update_translation', array($updater, 'updateTranslation'), PHP_INT_MAX, 1);
     }
 
-    public function updatePlugin($update, $slug)
+    public function updatePlugin($update, $item)
     {
+	
+		$slug = $item->plugin;
         if ($slug == 'cmscommander/init.php' || $slug == 'cms-commander-client/init.php') {
             return false;
         }
@@ -62,8 +64,17 @@ class CMSC_Updater
         return $update;
     }
 
-    public function updateTheme($update, $slug)
+    public function updateTheme($update, $item)
     {
+        /*
+          {
+            "theme": "twentyfourteen",
+            "new_version": "1.1",
+            "url": "https:\/\/wordpress.org\/themes\/twentyfourteen",
+            "package": "https:\/\/wordpress.org\/themes\/download\/twentyfourteen.1.1.zip"
+          }
+         */
+        $slug               = $item->theme;	
         $alwaysUpdateThemes = get_option('cmsc_global_themes_autoupdate', 'disabled');
 
         if ($alwaysUpdateThemes === 'enabled') {
@@ -163,12 +174,16 @@ class CMSC_Updater
     {
         $return = array();
         foreach ($items as $item) {
-            $plugin  = plugin_basename($item['path']);
+            if ($type == 'plugins') {
+                $pluginOrTheme = plugin_basename($item['path']);
+            } else {
+                $pluginOrTheme = $item['name'];
+            }		
             $current = get_option('cmsc_active_autoupdate_' . $type, array());
             if ($item['action'] === 'on') {
-                $current[] = $plugin;
+                $current[] = $pluginOrTheme;
             } else {
-                $current = array_diff($current, array($plugin));
+                $current = array_diff($current, array($pluginOrTheme));
             }
             sort($current);
             update_option('cmsc_active_autoupdate_' . $type, $current);

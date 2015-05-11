@@ -148,11 +148,12 @@ class CMSC_Post extends CMSC_Core
                 }
                 
                 $no_thumb = '';
-                if (preg_match('/-\d{3}x\d{3}\.[a-zA-Z0-9]{3,4}$/', $get_url[4])) {
-                    $no_thumb = preg_replace('/-\d{3}x\d{3}\.[a-zA-Z0-9]{3,4}$/', '.' . $get_url[5], $get_url[4]);
+                /*if (preg_match('/-\d{3}x\d{3}\.[a-zA-Z0-9]{3,4}$/', $get_url[4])) {
+                    $no_thumb = preg_replace('/-\d{3}x\d{3}\.[a-zA-Z0-9]{3,4}$/', '.'.$get_url[5], $get_url[4]);
                 } else {
                     $no_thumb = $get_url[4];
-                }
+                }*/
+                $no_thumb = $get_url[4];
                 
                 if(isset($upload['error']) && !empty($upload['error'])){
                 	return array('error' => $upload['error']);
@@ -224,8 +225,7 @@ class CMSC_Post extends CMSC_Core
                     
                     
                     $some_data = wp_generate_attachment_metadata($attach_id, $attach_upload['path']);
-                    wp_update_attachment_metadata($attach_id, $some_data);
-                    
+                    wp_update_attachment_metadata($attach_id, $some_data);      
                     
                     // changing href of a tag
                     if ($get_url[1] != '') {
