@@ -197,7 +197,7 @@ class CMSC_Core extends CMSC_Helper
 		}
 		
 		add_action('admin_init', array(&$this,'admin_actions'));  		
-		add_action('init', array( &$this, 'cmsc_remote_action'), 11);
+		add_action('init', array( &$this, 'cmsc_remote_action'), 5);
 		add_action('setup_theme', 'cmsc_run_backup_action', 1);
         add_action('plugins_loaded', 'cmsc_authenticate', 1);
 		add_action('setup_theme', 'cmsc_parse_request', 8);		
