@@ -4,7 +4,7 @@
  * www.cmscommander.com
  **************************************************************/
 
-class CMSC_WP_Robot extends CMSC_Core
+class CMSC_WPRobot extends CMSC_Core
 {
     function __construct()
     {

@@ -708,7 +708,7 @@ class CMSC_Core extends CMSC_Helper
      */
     function get_wpr_instance() {
         if (!isset($this->wpr_instance)) {
-            $this->wpr_instance = new CMSC_WP_Robot();
+            $this->wpr_instance = new CMSC_WPRobot();
         }
         return $this->wpr_instance;
     }	
