@@ -314,15 +314,18 @@ function cmsc_is_safe_mode()
 // Everything below was moved from init.php
 
 if( !function_exists ( 'cmsc_parse_request' )) {
-    function cmsc_parse_request(){
-	
+    function cmsc_parse_request(){	
         global $cmsc_core, $wp_db_version, $wpmu_version, $_wp_using_ext_object_cache, $_cmsc_data, $_cmsc_auth;
 
+        if(empty($_cmsc_auth)) {
+            return;
+        }		
+		
         ob_start();
         $_wp_using_ext_object_cache = false;
         @set_time_limit(1200);
 
-        if ($_cmsc_data['action'] === 'add_site') {
+        if (isset($_cmsc_data['action']) && $_cmsc_data['action'] === 'add_site') {	
             cmsc_add_site($_cmsc_data['params']);
             cmsc_response('You should never see this.', false);
         }
@@ -360,10 +363,12 @@ if( !function_exists ( 'cmsc_parse_request' )) {
             $cmsc_core->save_options( $_cmsc_data['setting'] );
         }
 
-        if( !$cmsc_core->register_action_params( $_cmsc_data['action'], $_cmsc_data['params'] ) ){
-            global $_cmsc_plugin_actions;
-            $_cmsc_plugin_actions[$_cmsc_data['action']] = $_cmsc_data['params'];
-        }
+		if(isset($_cmsc_data['action'])) {
+			if( !$cmsc_core->register_action_params( $_cmsc_data['action'], $_cmsc_data['params'] ) ){
+				global $_cmsc_plugin_actions;
+				$_cmsc_plugin_actions[$_cmsc_data['action']] = $_cmsc_data['params'];
+			}
+		}
         ob_end_clean();
     }
 }
@@ -396,7 +401,7 @@ if( !function_exists ( 'cmsc_remove_site' )) {
 		$cmsc_core->uninstall( $deactivate );
 		
 		include_once(ABSPATH . 'wp-admin/includes/plugin.php');
-		$plugin_slug = basename(dirname(__FILE__)) . '/' . basename(__FILE__);
+		$plugin_slug = 'cms-commander-client/init.php';
 		
 		if ($deactivate) {
 			deactivate_plugins($plugin_slug, true);

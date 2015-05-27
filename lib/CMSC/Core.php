@@ -265,7 +265,7 @@ class CMSC_Core extends CMSC_Helper
      */
     function admin_notice()
     {
-        echo '<div class="error"><p style="font-size: 14px; font-weight: bold;">Ready For CMS Commander</p><p>
+        echo '<div style="border-color: #F6921E;" class="error"><p style="font-size: 14px; font-weight: bold;">Ready For CMS Commander</p><p>
 	  	Please add this site to your <a target="_blank" href="http://cmscommander.com/wp-admin">CMS Commander account</a> now or deactivate our client plugin until you are ready to do so.	  	
 	  	</p></div>';
     }

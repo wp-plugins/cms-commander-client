@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.16
+Version: 2.17
 Author URI: http://cmscommander.com
 */
 
@@ -72,7 +72,7 @@ if( !function_exists ( 'cmsc_filter_params' )) {
 
 if( !function_exists('cmsc_authenticate')) {
     function cmsc_authenticate() {
-	
+
         global $_cmsc_data, $_cmsc_auth, $cmsc_core;
 
         if (!isset($HTTP_RAW_POST_DATA)) {
@@ -129,7 +129,7 @@ if( !function_exists ( 'cmsc_add_site' )) {
 	function cmsc_add_site($params) {
 		global $cmsc_core;
 		$num = extract($params);
-		
+
 		if ($num) {
 			if (!get_option('_cmsc_action_message_id') && !get_option('_cmsc_public_key')) {
 				$public_key = base64_decode($public_key);
@@ -296,7 +296,7 @@ if (!function_exists('cmsc_init')) {
             spl_autoload_register('cmsc_autoload', true, true);
         }	
 		
-        $GLOBALS['CMSC_WORKER_VERSION']  = '2.16';define('CMSC_WORKER_VERSION', '2.16');		
+        $GLOBALS['CMSC_WORKER_VERSION']  = '2.17';define('CMSC_WORKER_VERSION', '2.17');		
 		$GLOBALS['cmsc_core']            = $core = $GLOBALS['cmsc_core_backup'] = new CMSC_Core();
         $GLOBALS['cmsc_plugin_dir']      = WP_PLUGIN_DIR.'/'.basename(dirname(__FILE__));
         $GLOBALS['cmsc_plugin_url']      = WP_PLUGIN_URL.'/'.basename(dirname(__FILE__));
