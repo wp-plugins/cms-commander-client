@@ -217,7 +217,7 @@ class CMSC_Functions extends CMSC_Core
 				}
 			}	
 
-			if(!empty($args['ignore']) && is_array($args['ignore'])) {
+			if(!empty($args['ignore']) && is_array($args['ignore']) && is_array($plugins)) {
 				foreach($plugins as $id => $plugin){
 					if(in_array($plugin['path'], $args['ignore'])) {
 						unset($plugins[$id]);
