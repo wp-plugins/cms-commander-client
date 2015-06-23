@@ -58,7 +58,7 @@ function cmsc_format_memory_limit($limit)
 {
     if ((string) (int) $limit === (string) $limit) {
         // The number is numeric.
-        return mwp_format_bytes($limit);
+        return cmsc_format_bytes($limit);
     }
 
     $units = strtolower(substr($limit, -1));
