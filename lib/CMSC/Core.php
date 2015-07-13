@@ -175,7 +175,10 @@ class CMSC_Core extends CMSC_Helper
 			'update_core' => 'cmsc_core_update',	
 			'get_themes' => 'cmsc_themes_get',
 			'update_themes' => 'cmsc_themes_update',	
-			
+	
+			/* Cleanup */
+			'cleanup_delete' => 'cleanup_delete_cmsc',		
+
 			/* WP ROBOT */	
 			'wpr_get_campaigns' => 'cmsc_wpr_get_campaigns',	
 			'wpr_get_campaign' => 'cmsc_wpr_get_campaign',	

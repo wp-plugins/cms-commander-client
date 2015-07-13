@@ -4,7 +4,7 @@ Plugin Name: CMS Commander
 Plugin URI: http://cmscommander.com/
 Description: Manage all your Wordpress websites remotely and enhance your articles with targeted images and ads. Visit <a href="http://cmscommander.com">CMSCommander.com</a> to sign up.
 Author: CMS Commander
-Version: 2.17
+Version: 2.18
 Author URI: http://cmscommander.com
 */
 
@@ -282,6 +282,8 @@ if (get_option('cmsc_debug_enable')) {
 if (!function_exists('cmsc_init')) {
     function cmsc_init() {
 	
+        $GLOBALS['CMSC_WORKER_VERSION']  = '2.18';define('CMSC_WORKER_VERSION', '2.18');	
+
         // Ensure PHP version compatibility.
         if (version_compare(PHP_VERSION, '5.2', '<')) {
             trigger_error("The CMS Commander client plugin requires PHP 5.2 or higher.", E_USER_ERROR);
@@ -295,13 +297,11 @@ if (!function_exists('cmsc_init')) {
             // The prepend parameter was added in PHP 5.3.0
             spl_autoload_register('cmsc_autoload', true, true);
         }	
-		
-        $GLOBALS['CMSC_WORKER_VERSION']  = '2.17';define('CMSC_WORKER_VERSION', '2.17');		
+			
 		$GLOBALS['cmsc_core']            = $core = $GLOBALS['cmsc_core_backup'] = new CMSC_Core();
         $GLOBALS['cmsc_plugin_dir']      = WP_PLUGIN_DIR.'/'.basename(dirname(__FILE__));
         $GLOBALS['cmsc_plugin_url']      = WP_PLUGIN_URL.'/'.basename(dirname(__FILE__));
 		
-
 		$siteurl = function_exists( 'get_site_option' ) ? get_site_option( 'siteurl' ) : get_option( 'siteurl' );
 		define('CMSC_XFRAME_COOKIE', $xframe = 'wordpress_'.md5($siteurl).'_xframe');
 	
@@ -311,7 +311,7 @@ if (!function_exists('cmsc_init')) {
 		if(isset($_GET['auto_login'])) {
 			$core->automatic_login();	
 		}
-		cmsc_add_action('cleanup_delete', 'cleanup_delete_cmsc');	
+		//cmsc_add_action('cleanup_delete', 'cleanup_delete_cmsc');	
 		add_filter( 'cmsc_website_add', 'cmsc_readd_backup_task' );
 							
 		add_filter('cmsc_stats_filter', 'cmsc_get_extended_info');

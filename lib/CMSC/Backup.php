@@ -739,8 +739,10 @@ class CMSC_Backup extends CMSC_Core {
      */
     function zip_archive_backup_db($task_name, $db_result, $backup_file) {
     	$disable_comp = $this->tasks[$task_name]['task_args']['disable_comp'];
-    	$zip = new ZipArchive();
-    	$result = $zip->open($backup_file, ZIPARCHIVE::OVERWRITE); // Tries to open $backup_file for acrhiving
+        /** @handled class */
+        $zip = new ZipArchive();
+        /** @handled constant */
+        $result = $zip->open($backup_file, ZipArchive::OVERWRITE); // Tries to open $backup_file for acrhiving
     	if ($result === true) {
     		$result = $result && $zip->addFile(CMSC_BACKUP_DIR.'/cmsc_db/index.php', "cmsc_db/index.php"); // Tries to add cmsc_db/index.php to $backup_file
     		$result = $result && $zip->addFile($db_result, "cmsc_db/" . basename($db_result)); // Tries to add db dump form cmsc_db dir to $backup_file

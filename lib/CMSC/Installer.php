@@ -487,7 +487,6 @@ class CMSC_Installer extends CMSC_Core
 						}
                     }
                 }
-                ob_end_clean();
                 return array(
                     'upgraded' => $return
                 );
@@ -497,7 +496,6 @@ class CMSC_Installer extends CMSC_Core
                 );
 	    }	
         } else {
-            ob_end_clean();
 	    
             return array(
                 'error' => 'WordPress update required first.'
@@ -554,7 +552,6 @@ class CMSC_Installer extends CMSC_Core
                     'error' => 'Upgrade failed.'
                 );
         } else {
-            ob_end_clean();
             return array(
                 'error' => 'WordPress update required first'
             );
@@ -626,23 +623,6 @@ class CMSC_Installer extends CMSC_Core
                 }
             }
 			
-//			if(!empty($themes)){
-//				$updatethemes = $this->upgrade_themes(array_keys($themes));
-//				if(!empty($updatethemes) && isset($updatethemes['upgraded'])){
-//					foreach ($premium_update as $key => $update) {
-//						$update = array_change_key_case($update, CASE_LOWER);
-//						foreach($updatethemes['upgraded'] as $template => $upgrade){
-//							if( isset($update['template']) && $update['template'] == $template) {
-//								if( $upgrade == 1 )
-//									unset($premium_update[$key]);
-//
-//								$pr_update['themes']['upgraded'][md5($update['name'])] = $upgrade;
-//							}
-//						}
-//					}
-//				}
-//			}
-			
             //try direct install with overwrite
             if (!empty($premium_update)) {
                 foreach ($premium_update as $update) {
@@ -712,7 +692,7 @@ class CMSC_Installer extends CMSC_Core
                 if ($plugin_path == 'cmscommander/init.php' || $plugin_path == 'cms-commander-client/init.php')
                     continue;
                 
-                $data = get_plugin_data(WP_PLUGIN_DIR . '/' . $plugin_path);               
+                $data = get_plugin_data(WP_PLUGIN_DIR.'/'.$plugin_path, false, false);
                 if (isset($data['Name']) && in_array($data['Name'], $filter)) {
                     continue;
                 }
