@@ -410,29 +410,25 @@ class CMSC_Stats extends CMSC_Core
         
         $stats = $this->cmsc_parse_action_params('pre_init_stats', $params, $this);
         $num   = extract($params);
-       
-        if ($params['refresh'] == 'transient') {
+		
+		if ($params['refresh'] == 'transient') {
+			global $wp_current_filter;
+			// Some plugins that hook to transient setting rely on get_plugin_data() function.
+			include_once ABSPATH.'wp-admin/includes/plugin.php';
+			$wp_current_filter[] = 'load-update-core.php';
 
-            global $wp_current_filter;
-            $wp_current_filter[] = 'load-update-core.php';
+			wp_version_check();
+			wp_update_themes();
 
-            wp_version_check();
+			// THIS IS INTENTIONAL, please do not delete one of the calls to wp_update_plugins(), it is required for
+			// some custom plugins (read premium) to work with ManageWP :)
+			// the second call is not going to trigger the remote post invoked from the wp_update_plugins call
+			wp_update_plugins();
 
-            wp_update_themes();
+			array_pop($wp_current_filter);
 
-            // THIS IS INTENTIONAL, please do not delete one of the calls to wp_update_plugins(), it is required for
-            // some custom plugins (read premium) to work with ManageWP :)
-            // the second call is not going to trigger the remote post invoked from the wp_update_plugins call
-            wp_update_plugins();
-
-            array_pop($wp_current_filter);
-
-            $wp_current_filter[] = 'load-plugins.php';
-
-            wp_update_plugins();
-
-            array_pop($wp_current_filter);
-        }
+			do_action('load-plugins.php');
+		}		
         
 	/** @var $wpdb wpdb */
         global $wpdb, $cmsc_wp_version, $cmsc_plugin_dir, $wp_version, $wp_local_package;

@@ -158,25 +158,22 @@ class CMSC_Functions extends CMSC_Core
 			$this->cmsc_delete_transient('update_themes');
 		}
 
-        global $wp_current_filter;
-        $wp_current_filter[] = 'load-update-core.php';
+		global $wp_current_filter;
+		// Some plugins that hook to transient setting rely on get_plugin_data() function.
+		include_once ABSPATH.'wp-admin/includes/plugin.php';
+		$wp_current_filter[] = 'load-update-core.php';
 
-        wp_version_check();
+		wp_version_check();
+		wp_update_themes();
 
-        wp_update_themes();
+		// THIS IS INTENTIONAL, please do not delete one of the calls to wp_update_plugins(), it is required for
+		// some custom plugins (read premium) to work with ManageWP :)
+		// the second call is not going to trigger the remote post invoked from the wp_update_plugins call
+		wp_update_plugins();
 
-        // THIS IS INTENTIONAL, please do not delete one of the calls to wp_update_plugins(), it is required for
-        // some custom plugins (read premium) to work with ManageWP :)
-        // the second call is not going to trigger the remote post invoked from the wp_update_plugins call
-        wp_update_plugins();
+		array_pop($wp_current_filter);
 
-        array_pop($wp_current_filter);
-
-        $wp_current_filter[] = 'load-plugins.php';
-
-        wp_update_plugins();
-
-        array_pop($wp_current_filter);		    
+		do_action('load-plugins.php');		    
        
 		// GET DRAFTS
 		$drafts = get_posts('post_status=draft&numberposts=4&orderby=modified&order=desc');

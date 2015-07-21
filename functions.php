@@ -330,6 +330,60 @@ function cmsc_is_safe_mode()
 
 // Everything below was moved from init.php
 
+if( !function_exists('cmsc_authenticate')) {
+    function cmsc_authenticate() {
+
+        global $_cmsc_data, $_cmsc_auth, $cmsc_core;
+
+        if (!isset($HTTP_RAW_POST_DATA)) {
+            $HTTP_RAW_POST_DATA = file_get_contents('php://input');
+        }
+        /*if(substr($HTTP_RAW_POST_DATA, 0, 7) == "action="){
+            $HTTP_RAW_POST_DATA = str_replace("action=", "", $HTTP_RAW_POST_DATA);
+        }*/
+		
+        $_cmsc_data = base64_decode($HTTP_RAW_POST_DATA);
+        if (!$_cmsc_data){
+            return;
+        }
+        $_cmsc_data = cmsc_parse_data(  @unserialize($_cmsc_data)  );
+
+        if(empty($_cmsc_data['cmsc_action'])) {
+            return;
+        } else {
+			$_cmsc_data['action'] = $_cmsc_data['cmsc_action'];
+		}
+		
+        if($_cmsc_data['cmsc'] !== "yes") {
+            return;
+        }		
+
+        if (!$cmsc_core->check_if_user_exists($_cmsc_data['params']['username'])) {
+            cmsc_response('Username <b>' . $_cmsc_data['params']['username'] . '</b> does not have administrator capabilities. Please check the Admin username.', false);
+        }
+
+        if($_cmsc_data['action'] === 'add_site') {
+            $_cmsc_auth = true;
+			return;
+        } else {
+            $_cmsc_auth = $cmsc_core->authenticate_message($_cmsc_data['action'] . $_cmsc_data['id'], $_cmsc_data['signature'], $_cmsc_data['id']);
+        }
+
+        if($_cmsc_auth !== true) {
+            cmsc_response($_cmsc_auth['error'], false);
+        }
+
+        if(isset($_cmsc_data['params']['username']) && !is_user_logged_in()){
+            $user = function_exists('get_user_by') ? get_user_by('login', $_cmsc_data['params']['username']) : get_userdatabylogin( $_cmsc_data['params']['username'] );
+            wp_set_current_user($user->ID);
+            if(@getenv('IS_WPE'))
+                wp_set_auth_cookie($user->ID);			
+        }
+        /*if(!defined("WP_ADMIN"))
+            define(WP_ADMIN,true);*/
+    }
+}
+
 if( !function_exists ( 'cmsc_parse_request' )) {
     function cmsc_parse_request(){	
         global $cmsc_core, $wp_db_version, $wpmu_version, $_wp_using_ext_object_cache, $_cmsc_data, $_cmsc_auth;

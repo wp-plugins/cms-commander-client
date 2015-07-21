@@ -200,12 +200,13 @@ class CMSC_Core extends CMSC_Helper
 		}
 		
 		add_action('admin_init', array(&$this,'admin_actions'));  		
-		add_action('init', array( &$this, 'cmsc_remote_action'), 5);
+		add_action('init', array( &$this, 'cmsc_remote_action'), 9999);
 		add_action('setup_theme', 'cmsc_run_backup_action', 1);
         add_action('plugins_loaded', 'cmsc_authenticate', 1);
-		add_action('setup_theme', 'cmsc_parse_request', 8);		
+		add_action('setup_theme', 'cmsc_parse_request', 8);	
 		add_action('set_auth_cookie', array( &$this, 'cmsc_set_auth_cookie'));
-		add_action('set_logged_in_cookie', array( &$this, 'cmsc_set_logged_in_cookie'));				
+		add_action('set_logged_in_cookie', array( &$this, 'cmsc_set_logged_in_cookie'));
+		
     }
     
 	function cmsc_remote_action(){
