@@ -166,9 +166,6 @@ class CMSC_Functions extends CMSC_Core
 		wp_version_check();
 		wp_update_themes();
 
-		// THIS IS INTENTIONAL, please do not delete one of the calls to wp_update_plugins(), it is required for
-		// some custom plugins (read premium) to work with ManageWP :)
-		// the second call is not going to trigger the remote post invoked from the wp_update_plugins call
 		wp_update_plugins();
 
 		array_pop($wp_current_filter);

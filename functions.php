@@ -1133,15 +1133,17 @@ if( !function_exists('cmsc_plugin_actions') ){
 						if(isset($current_user->caps) && !empty($current_user->caps)){
 							$usercaps = $current_user->caps;
 						}
-						foreach($mmode['hidecaps'] as $cap => $hide){
-							if(!$hide)
-								continue;
-							
-							foreach($usercaps as $ucap => $val){
-								if($ucap == $cap){
-									ob_end_clean();
-									ob_end_flush();
-									die($mmode['template']);
+						if(is_array($mmode['hidecaps'])) {
+							foreach($mmode['hidecaps'] as $cap => $hide){
+								if(!$hide)
+									continue;
+								
+								foreach($usercaps as $ucap => $val){
+									if($ucap == $cap){
+										ob_end_clean();
+										ob_end_flush();
+										die($mmode['template']);
+									}
 								}
 							}
 						}
